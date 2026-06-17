@@ -19,6 +19,8 @@ Koordinaten (Vogelperspektive):
 import math
 import time
 
+from tello_control.core.constants import DIST_MIN, DIST_MAX, ANGLE_MIN, ANGLE_MAX
+
 
 class TelloException(Exception):
     """Entspricht grob dem Fehler, den die echte Tello bei ungültigen Befehlen wirft."""
@@ -26,11 +28,6 @@ class TelloException(Exception):
 
 
 class MockTello:
-    # Grenzen des echten Tello-SDK
-    MIN_DIST = 20     # cm
-    MAX_DIST = 500    # cm
-    MIN_ANGLE = 1     # Grad
-    MAX_ANGLE = 360   # Grad
 
     def __init__(self, verbose=True, start_battery=86):
         self.verbose = verbose
@@ -68,17 +65,17 @@ class MockTello:
             raise TelloException(f"'{action}' nicht möglich: Drohne ist nicht in der Luft.")
 
     def _check_dist(self, cm):
-        if not (self.MIN_DIST <= cm <= self.MAX_DIST):
+        if not (DIST_MIN <= cm <= DIST_MAX):
             raise TelloException(
                 f"Distanz {cm} cm außerhalb des erlaubten Bereichs "
-                f"({self.MIN_DIST}-{self.MAX_DIST} cm)."
+                f"({DIST_MIN}-{DIST_MAX} cm)."
             )
 
     def _check_angle(self, deg):
-        if not (self.MIN_ANGLE <= deg <= self.MAX_ANGLE):
+        if not (ANGLE_MIN <= deg <= ANGLE_MAX):
             raise TelloException(
                 f"Winkel {deg}° außerhalb des erlaubten Bereichs "
-                f"({self.MIN_ANGLE}-{self.MAX_ANGLE}°)."
+                f"({ANGLE_MIN}-{ANGLE_MAX}°)."
             )
 
     def _drain(self, amount=1):
@@ -175,6 +172,11 @@ class MockTello:
 
     def end(self):
         self._say("🔌 Verbindung beendet.")
+
+    @property
+    def is_flying(self) -> bool:
+        """Alias matching djitellopy.Tello's attribute name — keeps interface consistent."""
+        return self.flying
 
     # ---------- Auswertung ----------
     def position_str(self):

@@ -91,6 +91,22 @@ Aufrufe als Modul (`python -m tello_control.gesture.app`) oder via console-scrip
 
 ---
 
+## Quick orientation for Claude
+
+- **Einstieg:** `src/tello_control/core/controller.py` + `core/mock_tello.py`
+- **Tests validieren schnell:** `pytest tests/ -q` (hardware-frei, ~2 s, 49 Tests)
+- **Gesture und Voice sind unabhängig** — eines kann ohne das andere verstanden/geändert werden.
+- **Mock ≈ 80 % der Logik** — Sim/Real nur für physik-spezifische Fragen nötig.
+- **SDK-Grenzen:** einzelne Quelle in `src/tello_control/core/constants.py`.
+
+## Glossar
+
+- **MockTello** – In-Memory-Drohne (kein WLAN, kein Hardware); Basis für Mock und Sim.
+- **DroneController** – Abstraktion, versteckt Backend-Wahl (`mock|sim|real`).
+- **PyBulletBackend** – erbt von MockTello, überschreibt Flugmethoden mit Physik.
+- **Wake Word** – "Drohne" — Sicherheits-Gate im Dauerhör-Modus der Sprachsteuerung.
+- **`_after_move()`** – PyBullet-Hook: treibt Physik zur neuen Logik-Pose nach super()-Aufruf.
+
 ## Für Claude: Arbeitshinweise
 
 - Neue Features zuerst gegen Mock/Sim – nie direkt mit echter Drohne debuggen.

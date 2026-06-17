@@ -99,3 +99,32 @@ def test_battery_drains():
     drone.connect()
     drone.takeoff()
     assert drone.get_battery() < 86
+
+
+def test_battery_never_goes_negative():
+    drone = MockTello(verbose=False, start_battery=1)
+    drone.connect()
+    drone.takeoff()
+    for _ in range(20):
+        try:
+            drone.move_forward(50)
+        except TelloException:
+            break
+    assert drone.get_battery() >= 0
+
+
+def test_emergency_stops_drone():
+    drone = _airborne()
+    drone.emergency()
+    assert not drone.flying
+    assert not drone.is_flying
+
+
+def test_yaw_180_reverses_forward_direction():
+    """At 180° yaw, forward should decrease world-Y (exact inverse of 0°)."""
+    drone = _airborne()
+    drone.rotate_clockwise(180)
+    y0 = drone.y
+    drone.move_forward(100)
+    assert drone.y < y0
+    assert math.isclose(drone.x, 0, abs_tol=1e-6)

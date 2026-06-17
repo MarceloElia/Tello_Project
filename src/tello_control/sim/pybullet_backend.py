@@ -23,13 +23,19 @@ Koordinaten:
 import math
 import time
 import numpy as np
-import pybullet as p
+
+try:
+    import pybullet as p
+    from gym_pybullet_drones.envs.CtrlAviary import CtrlAviary
+    from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
+    from gym_pybullet_drones.utils.enums import DroneModel
+except ImportError as _e:
+    raise ImportError(
+        "PyBullet / gym-pybullet-drones not installed. "
+        "Run: conda env create -f environment-sim.yml  (conda env tello-sim)"
+    ) from _e
 
 from tello_control.core.mock_tello import MockTello
-
-from gym_pybullet_drones.envs.CtrlAviary import CtrlAviary
-from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
-from gym_pybullet_drones.utils.enums import DroneModel
 
 CTRL_FREQ = 240          # Regel-/Physikfrequenz (Hz)
 POS_TOL   = 0.03         # m – Zielradius
@@ -108,13 +114,18 @@ class PyBulletBackend(MockTello):
         max_steps = int(MAX_FLY_S * CTRL_FREQ)
 
         for i in range(max_steps):
-            state = self._obs[0]
-            rpm = self._ctrl.computeControlFromState(
-                control_timestep=1.0 / CTRL_FREQ, state=state,
-                target_pos=target, target_rpy=target_rpy,
-            )[0]
-            o, _, _, _, _ = self._env.step(rpm.reshape(1, 4))
-            self._obs = o
+            try:
+                state = self._obs[0]
+                rpm = self._ctrl.computeControlFromState(
+                    control_timestep=1.0 / CTRL_FREQ, state=state,
+                    target_pos=target, target_rpy=target_rpy,
+                )[0]
+                o, _, _, _, _ = self._env.step(rpm.reshape(1, 4))
+                self._obs = o
+            except Exception as e:
+                self._say(f"⛔ Physik-Fehler: {e}. Notlandung.")
+                super().emergency()
+                return
 
             pos = self._obs[0][0:3]
             if self._gui and self._camera_follow and i % 8 == 0:
@@ -172,32 +183,24 @@ class PyBulletBackend(MockTello):
         if not self._cooperative:
             self._sim_goto(self.x, self.y, self.z, self.yaw)
 
-    def move_forward(self, cm):
-        super().move_forward(cm); self._after_move()
-
-    def move_back(self, cm):
-        super().move_back(cm); self._after_move()
-
-    def move_left(self, cm):
-        super().move_left(cm); self._after_move()
-
-    def move_right(self, cm):
-        super().move_right(cm); self._after_move()
-
-    def move_up(self, cm):
-        super().move_up(cm); self._after_move()
-
-    def move_down(self, cm):
-        super().move_down(cm); self._after_move()
-
-    def rotate_clockwise(self, deg):
-        super().rotate_clockwise(deg); self._after_move()
-
-    def rotate_counter_clockwise(self, deg):
-        super().rotate_counter_clockwise(deg); self._after_move()
-
     def end(self):
         if self._env is not None:
             self._env.close()
             self._env = None
+        self._ctrl = None
         super().end()
+
+
+# Generate the 8 movement overrides: each delegates to MockTello's implementation
+# (safety checks + pose update + logging) then drives physics to the new pose.
+def _make_move_override(method_name: str):
+    def _override(self, val):
+        getattr(MockTello, method_name)(self, val)
+        self._after_move()
+    _override.__name__ = method_name
+    return _override
+
+for _n in ("move_forward", "move_back", "move_left", "move_right",
+           "move_up", "move_down", "rotate_clockwise", "rotate_counter_clockwise"):
+    setattr(PyBulletBackend, _n, _make_move_override(_n))
+del _n, _make_move_override

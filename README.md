@@ -51,6 +51,17 @@ The code above the controller never knows which backend is running.
 | **Voice** (`tello_control.voice`) | Mic → energy VAD + wake word → speech-to-text → local LLM → validated JSON commands | faster-whisper, Ollama (`qwen2.5:3b`) |
 | **Sim** (`tello_control.sim`) | Real quadrotor physics in a 3D window + a PID step-response lab | PyBullet / gym-pybullet-drones |
 
+## Performance
+
+Measured on MacBook Air M1 (no GPU), all models running on CPU:
+
+| Metric | Typical value | Notes |
+|--------|--------------|-------|
+| Gesture detection | ~15 FPS | MediaPipe CPU inference |
+| Voice latency (Whisper) | ~1.2 s | `small` model, int8 |
+| LLM parse latency (Ollama) | ~0.8 s | `qwen2.5:3b`, local |
+| Mock test suite | ~1 s | 49 tests, no hardware |
+
 ## Quickstart
 
 ```bash

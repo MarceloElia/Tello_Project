@@ -19,24 +19,30 @@ JSON-Format das vom LLM erwartet wird:
 
 from dataclasses import dataclass
 
-# SDK-Grenzen (wie in MockTello / djitellopy)
-MIN_DIST, MAX_DIST = 20, 500     # cm
-MIN_ANGLE, MAX_ANGLE = 1, 360    # Grad
+from tello_control.core.constants import DIST_MIN, DIST_MAX, ANGLE_MIN, ANGLE_MAX
 
-# Befehlsschema: action -> (braucht_wert, min, max, einheit)
-# braucht_wert=False → Wert wird ignoriert/verboten
-SCHEMA = {
-    "takeoff":    (False, None, None, None),
-    "land":       (False, None, None, None),
-    "emergency":  (False, None, None, None),
-    "forward":    (True, MIN_DIST, MAX_DIST, "cm"),
-    "back":       (True, MIN_DIST, MAX_DIST, "cm"),
-    "left":       (True, MIN_DIST, MAX_DIST, "cm"),
-    "right":      (True, MIN_DIST, MAX_DIST, "cm"),
-    "up":         (True, MIN_DIST, MAX_DIST, "cm"),
-    "down":       (True, MIN_DIST, MAX_DIST, "cm"),
-    "rotate_cw":  (True, MIN_ANGLE, MAX_ANGLE, "Grad"),
-    "rotate_ccw": (True, MIN_ANGLE, MAX_ANGLE, "Grad"),
+
+@dataclass(frozen=True)
+class ActionSpec:
+    requires_value: bool
+    min_val: int | None = None
+    max_val: int | None = None
+    unit: str | None = None
+
+
+# Befehlsschema: action → Spezifikation (Wert nötig, Grenzen, Einheit)
+SCHEMA: dict[str, ActionSpec] = {
+    "takeoff":    ActionSpec(False),
+    "land":       ActionSpec(False),
+    "emergency":  ActionSpec(False),
+    "forward":    ActionSpec(True, DIST_MIN, DIST_MAX, "cm"),
+    "back":       ActionSpec(True, DIST_MIN, DIST_MAX, "cm"),
+    "left":       ActionSpec(True, DIST_MIN, DIST_MAX, "cm"),
+    "right":      ActionSpec(True, DIST_MIN, DIST_MAX, "cm"),
+    "up":         ActionSpec(True, DIST_MIN, DIST_MAX, "cm"),
+    "down":       ActionSpec(True, DIST_MIN, DIST_MAX, "cm"),
+    "rotate_cw":  ActionSpec(True, ANGLE_MIN, ANGLE_MAX, "Grad"),
+    "rotate_ccw": ActionSpec(True, ANGLE_MIN, ANGLE_MAX, "Grad"),
 }
 
 ALLOWED_ACTIONS = sorted(SCHEMA.keys())
@@ -67,23 +73,26 @@ def validate_command(raw: dict) -> Command:
             f"Unbekannte Aktion '{action}'. Erlaubt: {', '.join(ALLOWED_ACTIONS)}"
         )
 
-    needs_value, lo, hi, unit = SCHEMA[action]
+    spec = SCHEMA[action]
     value = raw.get("value")
 
-    if not needs_value:
+    if not spec.requires_value:
         # takeoff/land/emergency dürfen keinen Wert haben
         return Command(action=action, value=None)
 
     if value is None:
-        raise ValidationError(f"'{action}' braucht einen Wert ({lo}-{hi} {unit}).")
+        raise ValidationError(
+            f"'{action}' braucht einen Wert ({spec.min_val}-{spec.max_val} {spec.unit})."
+        )
 
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValidationError(f"'{action}': Wert muss eine Zahl sein, war {value!r}.")
 
     value = int(round(value))
-    if not (lo <= value <= hi):
+    if not (spec.min_val <= value <= spec.max_val):
         raise ValidationError(
-            f"'{action}': {value} {unit} außerhalb des erlaubten Bereichs ({lo}-{hi} {unit})."
+            f"'{action}': {value} {spec.unit} außerhalb des erlaubten Bereichs "
+            f"({spec.min_val}-{spec.max_val} {spec.unit})."
         )
 
     return Command(action=action, value=value)

@@ -127,7 +127,7 @@ def main():
         display   = cv2.cvtColor(annotated, cv2.COLOR_RGB2BGR)
         display   = draw_overlay(
             display, result.gesture, last_cmd,
-            ctrl.drone.flying if not real_mode else True,
+            ctrl.drone.is_flying,
             commander._streak, commander._stable, mode,
         )
         cv2.imshow("Gestensteuerung", display)

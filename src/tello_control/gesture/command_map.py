@@ -18,10 +18,24 @@ Gesten-Map:
   UNKNOWN       → kein Befehl
 """
 
+from typing import Callable
+
 from tello_control.gesture.detector import Gesture
 
 STABLE_FRAMES   = 8    # Frames die die Geste stabil gehalten werden muss
 COOLDOWN_FRAMES = 20   # Frames Pause nach Auslösung
+
+# Map: Gesture → (command name, controller call).  Extend here to add new gestures.
+_GESTURE_COMMANDS: dict[Gesture, tuple[str, Callable]] = {
+    Gesture.OPEN_HAND:     ("land",    lambda c: c.land()),
+    Gesture.THUMBS_UP:     ("up",      lambda c: c.up(30)),
+    Gesture.THUMBS_DOWN:   ("down",    lambda c: c.down(30)),
+    Gesture.POINT_FORWARD: ("forward", lambda c: c.forward(30)),
+    Gesture.POINT_LEFT:    ("left",    lambda c: c.left(30)),
+    Gesture.POINT_RIGHT:   ("right",   lambda c: c.right(30)),
+    Gesture.PEACE:         ("back",    lambda c: c.back(30)),
+    Gesture.FIST:          ("hover",   lambda c: None),
+}
 
 
 class GestureToCommand:
@@ -59,48 +73,13 @@ class GestureToCommand:
 
     def _dispatch(self, gesture: Gesture) -> str | None:
         self._cooldown_left = self._cooldown
-
+        entry = _GESTURE_COMMANDS.get(gesture)
+        if entry is None:
+            return None
+        name, action = entry
+        self._log(f"{gesture.name} → {name}")
         try:
-            if gesture == Gesture.OPEN_HAND:
-                self._log("OPEN_HAND → land()")
-                self._ctrl.land()
-                return "land"
-
-            if gesture == Gesture.THUMBS_UP:
-                self._log("THUMBS_UP → up(30)")
-                self._ctrl.up(30)
-                return "up"
-
-            if gesture == Gesture.THUMBS_DOWN:
-                self._log("THUMBS_DOWN → down(30)")
-                self._ctrl.down(30)
-                return "down"
-
-            if gesture == Gesture.POINT_FORWARD:
-                self._log("POINT_FORWARD → forward(30)")
-                self._ctrl.forward(30)
-                return "forward"
-
-            if gesture == Gesture.POINT_LEFT:
-                self._log("POINT_LEFT → left(30)")
-                self._ctrl.left(30)
-                return "left"
-
-            if gesture == Gesture.POINT_RIGHT:
-                self._log("POINT_RIGHT → right(30)")
-                self._ctrl.right(30)
-                return "right"
-
-            if gesture == Gesture.PEACE:
-                self._log("PEACE → back(30)")
-                self._ctrl.back(30)
-                return "back"
-
-            if gesture == Gesture.FIST:
-                self._log("FIST → hover")
-                return "hover"
-
+            action(self._ctrl)
         except Exception as e:
             self._log(f"Fehler bei Befehl: {e}")
-
-        return None
+        return name
