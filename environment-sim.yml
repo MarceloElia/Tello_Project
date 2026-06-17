@@ -1,0 +1,40 @@
+# Conda environment for the physics simulation (A3): PyBullet / gym-pybullet-drones.
+#
+# Why conda and not pip?  On Apple Silicon, `pip install pybullet` fails: the
+# bundled zlib contains old K&R C that recent Apple clang refuses to build.
+# conda-forge ships a prebuilt PyBullet binary, so we install the scientific
+# stack from conda-forge and only add the two pure-Python pieces via pip.
+#
+# Create:
+#     conda env create -f environment-sim.yml
+#     conda activate tello-sim
+#
+# Then install gym-pybullet-drones WITHOUT its deps (so it can't pull a second
+# PyBullet build or drag in SB3 + torch), and register this package:
+#     git clone https://github.com/utiasDSL/gym-pybullet-drones ~/gym-pybullet-drones-src
+#     pip install --no-deps -e ~/gym-pybullet-drones-src
+#     pip install --no-deps -e .          # this repo (tello_control importable)
+#
+# mediapipe + faster-whisper are included so gesture/voice can run against the
+# simulation from the same environment (numpy stays 2.x, no conflict).
+
+name: tello-sim
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pybullet>=3.2
+  - numpy>=1.24
+  - scipy>=1.10
+  - matplotlib>=3.7
+  - gymnasium>=0.29
+  - transforms3d>=0.4
+  - pillow>=10.0
+  - control                 # python-control, used by gym-pybullet-drones
+  - "setuptools<81"         # gym-pybullet-drones still uses pkg_resources
+  - pip
+  - pip:
+      - mediapipe>=0.10
+      - faster-whisper>=1.0
+      - sounddevice>=0.4
+      - opencv-python>=4.8

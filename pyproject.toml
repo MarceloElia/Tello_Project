@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tello-control"
+version = "0.1.0"
+description = "Gesture- and voice-controlled DJI Tello with a hardware-free mock and a PyBullet physics simulation — fully local, no cloud."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Marcelo Leindl" }]
+keywords = [
+    "tello", "drone", "mediapipe", "whisper", "ollama",
+    "pybullet", "gesture-control", "voice-control", "robotics",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+# Core dependencies — the main environment (mock / real drone / gestures / voice).
+dependencies = [
+    "djitellopy>=2.5",
+    "mediapipe>=0.10",
+    "opencv-python>=4.8",
+    "faster-whisper>=1.0",
+    "sounddevice>=0.4",
+    "numpy>=1.24",
+    "pygame>=2.5",
+]
+
+[project.optional-dependencies]
+# Physics simulation (A3). IMPORTANT: on Apple Silicon, PyBullet and
+# gym-pybullet-drones do NOT install cleanly via pip (the bundled zlib fails to
+# build with recent Apple clang). Use the conda environment instead — see
+# environment-sim.yml. These extras are kept for reference / Linux-x86 installs.
+sim = [
+    "pybullet>=3.2",
+    "gymnasium>=0.29",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "transforms3d>=0.4",
+    "Pillow>=10.0",
+    "setuptools<81",
+]
+dev = [
+    "pytest>=7.0",
+]
+
+[project.scripts]
+tello-gesture = "tello_control.gesture.app:main"
+tello-voice = "tello_control.voice.app:main"
+tello-sim = "tello_control.sim.launcher:main"
+
+[project.urls]
+Repository = "https://github.com/marceloleindl/tello-projekt"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"tello_control.gesture" = ["models/*.task"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

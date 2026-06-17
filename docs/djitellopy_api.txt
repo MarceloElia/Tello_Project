@@ -1,0 +1,144 @@
+djitellopy API Reference
+Quelle: https://djitellopy.readthedocs.io/en/latest/tello/
+Stand: 2026-06-15
+========================================================
+
+
+VERBINDUNG & INITIALISIERUNG
+-----------------------------
+__init__(host, retry_count, vs_udp)
+    Tello-Instanz erstellen. host = IP-Adresse der Drohne.
+
+connect(wait_for_state=True)
+    SDK-Modus aktivieren. Vor allen Steuerbefehlen aufrufen.
+
+end()
+    Verbindung sauber beenden. Landet automatisch wenn noch in der Luft.
+
+
+FLUGBEFEHLE
+-----------
+takeoff()
+    Automatischer Start.
+
+land()
+    Automatische Landung.
+
+move_up(x)       x = 20–500 cm
+move_down(x)     x = 20–500 cm
+move_left(x)     x = 20–500 cm
+move_right(x)    x = 20–500 cm
+move_forward(x)  x = 20–500 cm
+move_back(x)     x = 20–500 cm
+
+rotate_clockwise(x)          x = 1–360 Grad
+rotate_counter_clockwise(x)  x = 1–360 Grad
+
+go_xyz_speed(x, y, z, speed)
+    Fliege zu relativer Position (x, y, z) mit speed cm/s.
+    Koordinaten: -500–500 cm, speed: 10–100 cm/s.
+
+curve_xyz_speed(x1, y1, z1, x2, y2, z2, speed)
+    Kurvenfluig über Zwischenpunkt (x1,y1,z1) zum Zielpunkt (x2,y2,z2).
+    speed: 10–60 cm/s.
+
+flip(direction)
+    Flip-Manöver. direction: 'l' (links), 'r' (rechts), 'f' (vorwärts), 'b' (hinten).
+
+emergency()
+    ALLE MOTOREN SOFORT AUS. Kein sanftes Landen.
+
+set_speed(x)
+    Fluggeschwindigkeit setzen. x = 10–100 cm/s.
+
+send_rc_control(left_right, forward_backward, up_down, yaw_velocity)
+    RC-Steuerung mit Geschwindigkeitswerten. Alle Werte: -100 bis +100.
+
+
+MISSION PADS (nur Tello EDU)
+-----------------------------
+enable_mission_pads()
+    Mission-Pad-Erkennung aktivieren.
+
+disable_mission_pads()
+    Mission-Pad-Erkennung deaktivieren.
+
+go_xyz_speed_mid(x, y, z, speed, mid)
+    Fliege relativ zu Mission-Pad-Koordinaten.
+
+curve_xyz_speed_mid(x1, y1, z1, x2, y2, z2, speed, mid)
+    Kurvenflug relativ zu Mission Pad.
+
+
+ZUSTAND & SENSOREN
+------------------
+get_battery()           Akkustand in % (0–100)
+get_height()            Aktuelle Höhe in cm
+get_flight_time()       Motorlaufzeit in Sekunden
+get_pitch()             Neigung vorne/hinten in Grad
+get_roll()              Seitenneigung in Grad
+get_yaw()               Drehwinkel in Grad
+get_speed_x()           Geschwindigkeit X-Achse (cm/s)
+get_speed_y()           Geschwindigkeit Y-Achse (cm/s)
+get_speed_z()           Geschwindigkeit Z-Achse (cm/s)
+get_acceleration_x()    Beschleunigung X (cm/s²)
+get_acceleration_y()    Beschleunigung Y (cm/s²)
+get_acceleration_z()    Beschleunigung Z (cm/s²)
+get_temperature()       Durchschnittstemperatur in °C
+get_distance_tof()      Abstandssensor (Time-of-Flight) in cm
+get_barometer()         Barometrische Höhe in cm
+
+query_*()               Alternative Sensormethoden (eigene UDP-Anfragen)
+
+
+VIDEO-STREAMING
+---------------
+streamon()
+    Videostream aktivieren.
+
+streamoff()
+    Videostream deaktivieren.
+
+get_frame_read()
+    Frame-Objekt für OpenCV holen (nach streamon()).
+
+set_video_bitrate(bitrate)
+    Bitrate setzen. Werte: 0 (auto), 1–5 (Mbps).
+
+set_video_resolution(resolution)
+    Auflösung: Tello.RESOLUTION_480P oder Tello.RESOLUTION_720P.
+
+set_video_fps(fps)
+    FPS: Tello.FPS_5, Tello.FPS_15, Tello.FPS_30.
+
+set_video_direction(direction)
+    Kamera: Tello.CAMERA_FORWARD oder Tello.CAMERA_DOWNWARD.
+
+
+KONFIGURATION
+-------------
+set_wifi_credentials(ssid, password)
+    WLAN-Zugangsdaten der Drohne setzen.
+
+connect_to_wifi(ssid, password)
+    Drohne mit WLAN verbinden.
+
+reboot()
+    Drohne neu starten.
+
+turn_motor_on()
+    Motoren an (z.B. zum Kühlen am Boden).
+
+turn_motor_off()
+    Motoren aus.
+
+send_expansion_command(cmd)
+    Befehl an ESP32-Erweiterungsplatine senden (Tello Talent).
+
+
+SDK-GRENZEN (wichtig für MockTello)
+------------------------------------
+Distanz:      20–500 cm
+Winkel:        1–360 Grad
+Geschwindigkeit: 10–100 cm/s (go_xyz), 10–60 cm/s (curve)
+RC-Werte:     -100 bis +100

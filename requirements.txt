@@ -1,0 +1,16 @@
+# Core environment (mock / real drone / gestures / voice).
+# Python 3.11+ recommended. Pinned to versions verified on macOS (Apple M1).
+#
+# Simulation deps (PyBullet / gym-pybullet-drones) are NOT here — they live in a
+# separate conda environment, see environment-sim.yml.
+#
+# Preferred install:  pip install -e .   (uses pyproject.toml)
+# This file mirrors the core dependencies for quick `pip install -r`.
+
+djitellopy==2.5.0
+mediapipe==0.10.35
+opencv-python==4.13.0.92
+faster-whisper==1.2.1
+sounddevice==0.5.5
+numpy==2.4.6
+pygame==2.6.1
