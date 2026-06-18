@@ -30,3 +30,6 @@ src/tello_control/gesture/models/*.task
 
 # --- local Claude Code settings (personal, not for the public repo) ---
 .claude/settings.local.json
+
+# graphify knowledge-graph output (regenerable, contains machine-specific paths)
+graphify-out/
