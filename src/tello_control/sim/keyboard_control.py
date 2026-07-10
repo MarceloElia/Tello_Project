@@ -30,30 +30,45 @@ from tello_control.sim.keyboard_map import (
 from tello_control.sim.tuning_panel import TuningPanel, pid_arrays
 
 LOOP_HZ = 60
-PANEL_EVERY = 6      # Slider/Buttons nur alle 6 Frames abfragen -> ~10 Hz
 
 
-def _pressed_keys(client_id: int) -> tuple[set[str], set[str], bool]:
-    """(gehaltene Tasten, neu gedrückte Tasten, Shift gehalten).
+ESC = 27                     # PyBullet hat kein B3G_ESCAPE; ESC kommt als roher Code 27.
+SETTINGS_KEY = "m"           # garantierter Fallback, falls ESC nicht durchkommt
+FLY_KEYS = (65309, 13, 10)   # B3G_RETURN und die beiden Enter-Varianten
 
-    Sondertasten wie B3G_SHIFT (65306) liegen unterhalb von 0x10FFFF und würden
-    sonst als exotisches Unicode-Zeichen in `held` landen. Deshalb explizit filtern.
+_MODE_HELP = """
+  ── EINSTELLUNGEN ──  Physik pausiert, Regler links im Fenster.
+     ENTER   losfliegen (Panel verschwindet, Ansicht wird flüssig)
+     ESC / m zurück hierher
+     Buttons: Zurueck zum Menue · PID-Zustand · Defaults
+"""
+
+
+def _pressed_keys(client_id: int) -> tuple[set[str], set[str], bool, set[int]]:
+    """(gehaltene Tasten, neu gedrückte Tasten, Shift gehalten, neu gedrückte Rohcodes).
+
+    Sondertasten wie B3G_SHIFT (65306) und B3G_RETURN (65309) liegen unterhalb von
+    0x10FFFF und würden sonst als exotisches Unicode-Zeichen in `held` landen.
+    Deshalb explizit filtern und die Rohcodes separat zurückgeben.
     """
     events = p.getKeyboardEvents(physicsClientId=client_id)
     shift = bool(events.get(p.B3G_SHIFT, 0) & p.KEY_IS_DOWN)
 
-    special = {p.B3G_SHIFT, p.B3G_CONTROL, p.B3G_ALT}
+    special = {p.B3G_SHIFT, p.B3G_CONTROL, p.B3G_ALT, *FLY_KEYS}
     held: set[str] = set()
     just: set[str] = set()
+    just_codes: set[int] = set()
     for code, state in events.items():
-        if code in special or not (0 < code <= 0x10FFFF):
-            continue
+        if state & p.KEY_WAS_TRIGGERED:
+            just_codes.add(code)
+        if code in special or not (32 <= code <= 0x10FFFF):
+            continue                       # <32 sind Steuerzeichen (ESC = 27)
         char = chr(code).lower()
         if state & p.KEY_IS_DOWN:
             held.add(char)
         if state & p.KEY_WAS_TRIGGERED:
             just.add(char)
-    return held, just, shift
+    return held, just, shift, just_codes
 
 
 def main() -> int:
@@ -83,20 +98,35 @@ def main() -> int:
     frame = 0
     v = panel.read()          # Startwerte = Defaults
 
+    # Zwei Modi in einem Prozess. PyBullets Seitenpanel kostet pro Frame so viel, dass
+    # die Flugansicht damit nicht flüssig wird. Also: Panel nur zum Einstellen sichtbar,
+    # und dort steht die Physik still — im Einstellmodus ist Bildrate schlicht egal.
+    settings_mode = True
+    drone.set_gui_panel(True)
+    print(_MODE_HELP)
+
     try:
         while True:
             frame_start = time.monotonic()
-            held, just, shift = _pressed_keys(client_id)
+            held, just, shift, codes = _pressed_keys(client_id)
 
             if QUIT in just:
                 break
 
-            # --- Regler-Panel: Slider lesen, Buttons prüfen ------------------
-            # Nur alle PANEL_EVERY Frames: ein Slider-Durchlauf sind 13 Round-Trips zur
-            # PyBullet-GUI, und ein Mensch dreht keinen Regler mit 60 Hz. Die Werte
-            # werden trotzdem sofort wirksam, sobald sie gelesen sind.
-            frame += 1
-            if frame % PANEL_EVERY == 0:
+            # ---------- Moduswechsel ----------
+            if settings_mode and (codes & set(FLY_KEYS)):
+                settings_mode = False
+                drone.set_gui_panel(False)          # Overlay weg -> flüssig
+                print("Flugmodus. ESC oder 'm' -> zurück zu den Einstellungen.")
+            elif not settings_mode and (ESC in codes or SETTINGS_KEY in just):
+                settings_mode = True
+                if flying:
+                    ctrl.send_rc_control(0, 0, 0, 0)   # nicht wegdriften
+                drone.set_gui_panel(True)
+                print(_MODE_HELP)
+
+            # ---------- Einstellmodus: Slider lesen, Physik pausiert ----------
+            if settings_mode:
                 if panel.clicked("menu"):
                     back_to_menu = True
                     break
@@ -118,6 +148,14 @@ def main() -> int:
                     )
                     drone.set_pid_gains(**pid_arrays(v["p_xy"], v["p_z"], v["i_xy"],
                                                      v["d_xy"], v["d_z"]))
+
+                # Kein tick(): die Physik ruht, die Drohne bleibt stehen wo sie ist.
+                # Deshalb ist das teure Panel hier ohne Folgen.
+                time.sleep(period)
+                continue
+
+            # ---------- Flugmodus: kein Panel, keine Slider-Abfragen ----------
+            frame += 1
 
             # Shift = Kameramodus: Nachführung pausiert (Maus-Drag/Zoom gehören dem
             # Nutzer) und die Drohne schwebt, damit sie beim Umsehen nicht wegfliegt.

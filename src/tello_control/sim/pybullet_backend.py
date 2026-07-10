@@ -241,6 +241,18 @@ class PyBulletBackend(MockTello):
         self._camera_follow = bool(enabled)
 
     # ---------- Live-Tuning (tuning_panel.py) ----------
+    def set_gui_panel(self, visible: bool) -> None:
+        """PyBullets Seitenpanel (und damit die Slider) zur Laufzeit ein-/ausblenden.
+
+        Das Overlay kostet pro Frame spürbar Rechenzeit — auf macOS/Metal genug, um die
+        Flugansicht ruckeln zu lassen. Deshalb: Panel nur im Einstellmodus sichtbar,
+        beim Fliegen aus. Die Slider-IDs bleiben gültig, sie sind nur unsichtbar.
+        """
+        self._show_gui_panel = bool(visible)
+        if self._gui and self._env is not None:
+            p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1 if visible else 0,
+                                       physicsClientId=self._env.CLIENT)
+
     def set_flight_limits(self, cruise=None, max_acc=None, yaw_rate=None, yaw_acc=None):
         """Sollwert-Grenzen zur Laufzeit ändern. yaw_* in rad/s bzw. rad/s²."""
         if cruise is not None:

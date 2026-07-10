@@ -129,9 +129,15 @@ limits, which would otherwise fire on every WASD keystroke.
 
 ### Live tuning panel
 
-This mode opens PyBullet's side panel with live sliders — change them mid-flight and watch
-the behaviour change. Three buttons sit below: **back to menu**, **reset PID state**, and
-**restore defaults**.
+The mode starts in **settings**: PyBullet's side panel is visible, the sliders are live,
+and the physics is paused. Press **ENTER** to fly — the panel disappears and the view is
+smooth again. Press **ESC** (or `m`) to come back and change values.
+
+The split exists because the side panel is expensive to draw: it must be visible for the
+sliders to exist, but leaving it up makes the flight view unusable. Pausing physics in
+settings mode means its cost simply doesn't matter there.
+
+Three buttons below the sliders: **back to menu**, **reset PID state**, **restore defaults**.
 
 | Slider | Range | Default | What it does |
 |---|---|---|---|

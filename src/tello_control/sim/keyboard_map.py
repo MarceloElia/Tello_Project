@@ -48,6 +48,10 @@ HELP = f"""
            Loslassen -> die Kamera folgt wieder, dein Winkel und Zoom bleiben.
            '{CAM_TOGGLE}' schaltet die Nachführung dauerhaft ab (feste Ansicht).
 
+  Modi:    Der Start ist der EINSTELLMODUS (Regler sichtbar, Physik pausiert).
+           ENTER   -> Flugmodus (Panel aus, flüssige Ansicht)
+           ESC / m -> zurück in den Einstellmodus
+
   Halten = fliegen. Loslassen = Hover. Geschwindigkeit: {RC_CRUISE} (RC-Einheiten).
 """
 
