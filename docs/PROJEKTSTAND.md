@@ -7,8 +7,26 @@
 > Lebendes Statusdokument. Nach jeder Session aktualisieren (Datum + offene Punkte).
 > Aufruf-/Startbefehle stehen in `COMMANDS.md` (gleicher Ordner), nicht hier.
 
-**Stand:** 2026-07-09
+**Stand:** 2026-07-10
 **Aktive Phase:** A3 Kern fertig (PyBullet-Sim) · A0 + A1 + A2 + A3-Kern stehen
+**Letztes Ergebnis (2026-07-10):** Repo für Veröffentlichung vorbereitet.
+- `.gitignore`: `*.mov`/`*.mp4` raus (334 MB Rohvideos, eine Datei 142 MB > GitHubs
+  100-MB-Limit). Blanket-`.aider*` durch explizite Einträge ersetzt, damit ein
+  repo-lokales `.aider.conf.yml` mitkommt (sonst liest ein frischer Clone `AIDER.md` nie).
+- Untracked-Code committed: `velocity_map.py`, `fastpath.py`, `latency_benchmark.py`,
+  5 Testdateien. `COMMANDS.md` dokumentierte `--rc` schon, der Code war nicht in git.
+- Stale Fakten korrigiert: 49→97 Tests, `STABLE_FRAMES` 8→5, sechs tote Dateinamen hier
+  plus zwei in Source-Docstrings, Graph 355/569/29 → gemessen 537/807/38.
+- **Graphify-Benchmark** (`scripts/graphify_benchmark.py`): die alte 10×-Behauptung war
+  unbelegt. Gemessen: Median **4,8×** (3,5–22×), aber **0 von 5** Fragen wurden
+  vollständig beantwortet — der Graph ist ein Index, kein Orakel. Die billigste Abfrage
+  (147×) lag komplett daneben. `query --budget 2000` ist teurer als ein kleines Modul
+  zu lesen; `explain` lohnt sich.
+- Tooling wird mitveröffentlicht: 4 Skills unter `.claude/skills/` (Q_A ausgeschlossen —
+  zeigt auf privaten Wissensspeicher), `generate_gate` sagte 7b statt 3b.
+- CI: GitHub Actions, 97 Tests auf py3.11 + 3.12.
+- **Offen:** Demo-Videos (3 Stück) schneiden — 5-s-GIF + Vollclip als GitHub-Attachment;
+  Rezepte in `COMMANDS.md § Demo assets`. Dann privat pushen, CI grün, dann public.
 **Letztes Ergebnis (2026-07-09):** Zwei getrennte Latenz-Optimierungen für die
 Gestensteuerung (nur Mock getestet, echte Drohne noch offen):
 - **Kontinuierliche RC-Geschwindigkeitssteuerung** (`--rc`, opt-in): gehaltene Geste →
