@@ -92,17 +92,6 @@ The code above the controller never knows which backend is running.
 | **Sim** (`tello_control.sim`) | Real quadrotor physics in a 3D window + a PID step-response lab | PyBullet / gym-pybullet-drones |
 | **Controller** (`examples/ps4_controller.py`) | Gamepad sticks → continuous `send_rc_control` setpoints, zeroed on release and before landing. Talks to `djitellopy.Tello` directly, so unlike the modes above it flies the **real drone only** — no mock, no sim | pygame |
 
-## Performance
-
-Measured on MacBook Air M1 (no GPU), all models running on CPU:
-
-| Metric | Typical value | Notes |
-|--------|--------------|-------|
-| Gesture detection | ~15 FPS | MediaPipe CPU inference |
-| Voice latency (Whisper) | ~1.2 s | `small` model, int8 |
-| LLM parse latency (Ollama) | ~0.8 s | `qwen2.5:3b`, local |
-| Mock test suite | ~1.8 s | 97 tests, no hardware |
-
 ## Quickstart
 
 ```bash
@@ -211,14 +200,6 @@ Note that cloning this repo inherits the `PreToolUse` hooks in `.claude/settings
 which nudge an agent to run `graphify query` before grepping. Delete them if unwanted.
 
 > Full workflow write-up (German): [`docs/AI_WORKFLOW.md`](docs/AI_WORKFLOW.md)
-
-## Roadmap
-
-- **A0 Foundation** ✅ — controller abstraction, MockTello, first real flights
-- **A1 Gesture control** ✅ — MediaPipe, angle-based classifier, debounce
-- **A2 Voice control** ✅ — Whisper → Ollama → validated JSON, wake word
-- **A3 Physics sim** ✅ — PyBullet backend + PID lab
-- **A4 Integration** ⏳ — unified app, portfolio polish
 
 ## License
 
