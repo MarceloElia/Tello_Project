@@ -17,7 +17,8 @@ seamlessly with coding AI models and to run them as efficiently and performantly
 
 ## Demo
 
-All three clips are real flights with the physical Tello.
+The first three clips are real flights with the physical Tello; the last is the PyBullet
+simulation.
 
 **Gesture control** — a held hand pose maps to a discrete 30 cm move.
 
@@ -37,6 +38,11 @@ command, so the drone moves the moment the gesture is recognised.
 validated JSON. Watch with sound; everything runs locally on the laptop.
 
 https://github.com/user-attachments/assets/0d656712-5195-4bd6-93da-4e94c118456d
+
+**PID step-response lab (simulation)** — the PyBullet backend overshooting a step input
+before settling, used to tune the flight controller's PID gains.
+
+![PID overshoot in simulation](docs/images/pid_overstear_highlight.gif)
 
 ---
 
