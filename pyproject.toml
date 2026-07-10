@@ -55,7 +55,7 @@ tello-voice = "tello_control.voice.app:main"
 tello-sim = "tello_control.sim.launcher:main"
 
 [project.urls]
-Repository = "https://github.com/marceloleindl/tello-projekt"
+Repository = "https://github.com/MarceloElia/Tello_Project"
 
 [tool.setuptools.packages.find]
 where = ["src"]

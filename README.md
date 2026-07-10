@@ -6,7 +6,7 @@ control code drive a software mock, a PyBullet **physics simulation**, or the re
 drone over Wi‑Fi. So the whole system can be developed and tested **without any
 hardware**.
 
-[![Tests](https://github.com/marceloleindl/tello-projekt/actions/workflows/tests.yml/badge.svg)](https://github.com/marceloleindl/tello-projekt/actions/workflows/tests.yml)
+[![Tests](https://github.com/MarceloElia/Tello_Project/actions/workflows/tests.yml/badge.svg)](https://github.com/MarceloElia/Tello_Project/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Local](https://img.shields.io/badge/runs-100%25%20local-orange)
