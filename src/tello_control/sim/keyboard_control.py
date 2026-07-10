@@ -29,19 +29,27 @@ from tello_control.sim.keyboard_map import (
 LOOP_HZ = 60
 
 
-def _pressed_keys(client_id: int) -> tuple[set[str], set[str]]:
-    """(gehaltene Tasten, in diesem Frame neu gedrückte Tasten) als Kleinbuchstaben."""
+def _pressed_keys(client_id: int) -> tuple[set[str], set[str], bool]:
+    """(gehaltene Tasten, neu gedrückte Tasten, Shift gehalten).
+
+    Sondertasten wie B3G_SHIFT (65306) liegen unterhalb von 0x10FFFF und würden
+    sonst als exotisches Unicode-Zeichen in `held` landen. Deshalb explizit filtern.
+    """
+    events = p.getKeyboardEvents(physicsClientId=client_id)
+    shift = bool(events.get(p.B3G_SHIFT, 0) & p.KEY_IS_DOWN)
+
+    special = {p.B3G_SHIFT, p.B3G_CONTROL, p.B3G_ALT}
     held: set[str] = set()
     just: set[str] = set()
-    for code, state in p.getKeyboardEvents(physicsClientId=client_id).items():
-        if code > 0x10FFFF:          # Sondertasten (Pfeile, Shift) ignorieren
+    for code, state in events.items():
+        if code in special or not (0 < code <= 0x10FFFF):
             continue
         char = chr(code).lower()
         if state & p.KEY_IS_DOWN:
             held.add(char)
         if state & p.KEY_WAS_TRIGGERED:
             just.add(char)
-    return held, just
+    return held, just, shift
 
 
 def main() -> int:
@@ -67,15 +75,19 @@ def main() -> int:
     try:
         while True:
             frame_start = time.monotonic()
-            held, just = _pressed_keys(client_id)
+            held, just, shift = _pressed_keys(client_id)
 
             if QUIT in just:
                 break
 
+            # Shift = Kameramodus: Nachführung pausiert (Maus-Drag/Zoom gehören dem
+            # Nutzer) und die Drohne schwebt, damit sie beim Umsehen nicht wegfliegt.
+            ctrl.drone.suspend_camera(shift)
+
             if CAM_TOGGLE in just:
                 follow = not follow
                 ctrl.drone.set_camera_follow(follow)
-                print("Kamera folgt:", "an" if follow else "aus (Maus frei)")
+                print("Kamera folgt:", "an" if follow else "aus (fixe Ansicht)")
 
             if TAKEOFF in just and not flying:
                 ctrl.takeoff()
@@ -86,7 +98,7 @@ def main() -> int:
                 flying = False
 
             if flying:
-                ctrl.send_rc_control(*keys_to_velocity(held))
+                ctrl.send_rc_control(*((0, 0, 0, 0) if shift else keys_to_velocity(held)))
 
             ctrl.tick()          # RC -> Logik-Pose -> Physik (immer im Main-Thread)
 

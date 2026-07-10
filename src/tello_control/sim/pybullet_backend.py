@@ -49,7 +49,14 @@ MAX_ACC   = 1.2                # m/s² – Sollwert-Beschleunigung (0 -> CRUISE_
 YAW_ACC   = math.radians(240)  # rad/s² – Soll-Drehbeschleunigung
 RENDER_HZ = 60           # Sichtbare Bilder/s; darunter laufen mehrere Physikschritte
 CAM_LERP  = 0.12         # Kamera-Nachführung pro Frame (1.0 = hart springen)
-CAM_MIN_MOVE = 0.02      # m – darunter Kamera nicht anfassen (sonst stirbt der Maus-Drag)
+
+# Farben (Sim ist ein Schauobjekt: die Drohne muss das hellste Ding im Bild sein)
+FLOOR_RGBA  = [0.87, 0.83, 0.74, 1.0]    # warmes Beige
+GRID_RGB    = [0.62, 0.58, 0.50]         # Raster, dezent dunkler als der Boden
+EDGE_RGB    = [0.45, 0.42, 0.36]         # Feldgrenze
+BG_RGB      = [0.15, 0.16, 0.19]         # dunkler Hintergrund -> Boden hebt sich ab
+DRONE_RGBA  = [1.00, 0.45, 0.08, 1.0]    # kräftiges Orange
+DROP_RGB    = [0.20, 0.35, 0.75]         # Lotlinie, gegen Beige gut sichtbar
 
 
 class PyBulletBackend(MockTello):
@@ -82,6 +89,7 @@ class PyBulletBackend(MockTello):
         self._ramp = None
         self._yaw_ramp = None
         self._cam_target = None
+        self._camera_suspended = False   # Shift gehalten -> Maus gehört dem Nutzer
         self._drop_line = None   # Debug-Item-ID der Lotlinie (wird ersetzt, nicht neu erzeugt)
 
     # ---------- Sim-Aufbau ----------
@@ -118,20 +126,32 @@ class PyBulletBackend(MockTello):
         p.configureDebugVisualizer(p.COV_ENABLE_KEYBOARD_SHORTCUTS, 0, physicsClientId=cid)
         p.configureDebugVisualizer(p.COV_ENABLE_MOUSE_PICKING, 0, physicsClientId=cid)
         # Dunkler, neutraler Hintergrund: die hellgraue Drohne hebt sich klar ab.
-        p.configureDebugVisualizer(rgbBackground=[0.09, 0.10, 0.13], physicsClientId=cid)
+        p.configureDebugVisualizer(rgbBackground=BG_RGB, physicsClientId=cid)
         p.configureDebugVisualizer(lightPosition=[3.0, -3.0, 5.0], physicsClientId=cid)
         p.resetDebugVisualizerCamera(
             cameraDistance=3.2, cameraYaw=48, cameraPitch=-22,
             cameraTargetPosition=[0, 0, 1.0], physicsClientId=cid,
         )
 
-    def _setup_scene(self):
-        """Dunkles Studio mit hellem Bodenraster.
+    def _color_drone(self):
+        """Drohne kräftig einfärben. Die CF2X-URDF ist dunkelgrau und geht vor jedem
+        Untergrund unter — im Sim ist sie aber das einzige, worauf man schaut."""
+        if not self._gui or self._env is None:
+            return
+        cid = self._env.CLIENT
+        body = int(self._env.DRONE_IDS[0])
+        # Basis (-1) und alle Links (Propeller) einfärben.
+        for link in range(-1, p.getNumJoints(body, physicsClientId=cid)):
+            p.changeVisualShape(body, link, rgbaColor=DRONE_RGBA, physicsClientId=cid)
 
-        Der frühere helle Betonboden + cremeweiße Drahtwürfel gaben kaum Kontrast:
-        die hellgraue Crazyflie verschwand vor hellem Grund, und die 12 Würfelkanten
-        zogen den Blick stärker auf sich als die Drohne. Jetzt: dunkler Boden, helles
-        Raster als Tiefen-/Entfernungsraster, ein Höhenmast statt Wandmarken.
+    def _setup_scene(self):
+        """Beiger Boden, dezentes Raster, kräftig orange Drohne.
+
+        Der ursprüngliche helle Betonboden + cremeweiße Drahtwürfel gaben kaum
+        Kontrast: die dunkelgraue Crazyflie verschwand, und die 12 Würfelkanten zogen
+        den Blick stärker auf sich als die Drohne. Jetzt trägt die Drohne die Farbe,
+        der Boden bleibt ruhig, und der Hintergrund ist dunkel, damit sich das
+        Spielfeld klar absetzt.
 
         Alles rein visuell – kein Collision Shape, keine Physik-Auswirkung.
         """
@@ -146,10 +166,12 @@ class PyBulletBackend(MockTello):
         W, D = 2.0, 2.0          # halbe Breite/Tiefe des Flugfelds
         GRID = 0.5               # Rasterweite (m)
 
-        # ── Dunkler, matter Boden (überdeckt das Schachbrett) ─────────────────
+        self._color_drone()
+
+        # ── Beiger, matter Boden (überdeckt das Schachbrett) ──────────────────
         floor_vis = p.createVisualShape(
             p.GEOM_BOX, halfExtents=[W, D, 0.005],
-            rgbaColor=[0.16, 0.17, 0.20, 1.0],
+            rgbaColor=FLOOR_RGBA,
             physicsClientId=cid,
         )
         p.createMultiBody(
@@ -160,19 +182,19 @@ class PyBulletBackend(MockTello):
         )
 
         # ── Bodenraster: Maßstab und Tiefe, ohne vom Objekt abzulenken ────────
-        GC, GW, GZ = [0.34, 0.37, 0.42], 1.0, 0.012
+        GW, GZ = 1.0, 0.012
         n = int(W / GRID)
         for i in range(-n, n + 1):
             c = i * GRID
-            p.addUserDebugLine([c, -D, GZ], [c, D, GZ], GC, GW, physicsClientId=cid)
-            p.addUserDebugLine([-W, c, GZ], [W, c, GZ], GC, GW, physicsClientId=cid)
+            p.addUserDebugLine([c, -D, GZ], [c, D, GZ], GRID_RGB, GW, physicsClientId=cid)
+            p.addUserDebugLine([-W, c, GZ], [W, c, GZ], GRID_RGB, GW, physicsClientId=cid)
 
-        # Umrandung etwas heller: klare Feldgrenze
+        # Umrandung dunkler: klare Feldgrenze
         edge = [(-W,-D), (W,-D), (W,D), (-W,D)]
         for i in range(4):
             a, b = edge[i], edge[(i + 1) % 4]
             p.addUserDebugLine([a[0], a[1], GZ], [b[0], b[1], GZ],
-                               [0.55, 0.58, 0.64], 2.0, physicsClientId=cid)
+                               EDGE_RGB, 2.0, physicsClientId=cid)
 
         # ── Koordinaten-Achsen (Ursprung) ─────────────────────────────────────
         AZ = 0.02
@@ -182,19 +204,28 @@ class PyBulletBackend(MockTello):
         p.addUserDebugText("Y", [0,   0.65,AZ],  [0.30,0.95,0.40], 0.9, physicsClientId=cid)
 
         # ── Höhenmast am Ursprung: Höhe direkt an der Drohne ablesbar ─────────
-        p.addUserDebugLine([0, 0, AZ], [0, 0, 2.6], [0.35, 0.60, 0.95], 1.5,
+        p.addUserDebugLine([0, 0, AZ], [0, 0, 2.6], [0.22, 0.30, 0.55], 1.5,
                            physicsClientId=cid)
         for h in (0.5, 1.0, 1.5, 2.0, 2.5):
-            p.addUserDebugLine([-0.07, 0, h], [0.07, 0, h], [0.55, 0.75, 1.0], 2.0,
+            p.addUserDebugLine([-0.07, 0, h], [0.07, 0, h], [0.20, 0.35, 0.75], 2.0,
                                physicsClientId=cid)
-            p.addUserDebugText(f"{h:.1f}", [0.10, 0, h], [0.62, 0.72, 0.85], 0.8,
+            p.addUserDebugText(f"{h:.1f}", [0.10, 0, h], [0.25, 0.30, 0.40], 0.8,
                                physicsClientId=cid)
 
         p.configureDebugVisualizer(p.COV_ENABLE_RENDERING, 1, physicsClientId=cid)
 
     def set_camera_follow(self, enabled: bool) -> None:
-        """Kamera-Nachführung zur Laufzeit an/aus (Taste 'c' in keyboard_control)."""
+        """Kamera-Nachführung dauerhaft an/aus (Taste 'c' in keyboard_control)."""
         self._camera_follow = bool(enabled)
+
+    def suspend_camera(self, suspended: bool) -> None:
+        """Nachführung kurzzeitig aussetzen (Shift halten), damit die Maus frei ist.
+
+        Solange die Sim jeden Frame `resetDebugVisualizerCamera` ruft, überschreibt sie
+        einen laufenden Maus-Drag. Statt das mit einer Totzone zu umgehen (die erzeugt
+        genau das ruckartige Nachspringen der Kamera), wird sie hier komplett gestoppt.
+        """
+        self._camera_suspended = bool(suspended)
 
     def _update_ground_marker(self, pos):
         """Lotlinie Drohne→Boden. Ohne sie ist die Höhe im 3D-Bild kaum schätzbar."""
@@ -207,34 +238,30 @@ class PyBulletBackend(MockTello):
         self._drop_line = p.addUserDebugLine(
             [float(pos[0]), float(pos[1]), 0.012],
             [float(pos[0]), float(pos[1]), float(pos[2])],
-            [0.95, 0.75, 0.25], 1.5, **kwargs,
+            DROP_RGB, 1.5, **kwargs,
         )
 
     def _follow_camera(self, pos):
         """Kamera-Ziel weich der Drohne nachführen, Zoom/Winkel des Users beibehalten.
 
-        Zwei Fallen, die hier umgangen werden:
+        Ein hartes Setzen auf die Drohnenposition überträgt jede Regelschwingung 1:1
+        aufs Bild — das Ruckeln sitzt dann in der Kamera, nicht in der Drohne.
+        Exponentielle Glättung dämpft das.
 
-        1. Ein hartes Setzen auf die Drohnenposition überträgt jede Regelschwingung
-           1:1 aufs Bild — das Ruckeln sitzt dann in der Kamera, nicht in der Drohne.
-           Exponentielle Glättung dämpft das.
-        2. `resetDebugVisualizerCamera` bei JEDEM Frame killt das Maus-Ziehen: der
-           laufende Drag wird von unseren zurückgeschriebenen Werten überschrieben,
-           die Ansicht schnappt zurück. Deshalb nur nachführen, wenn sich das
-           geglättete Ziel spürbar bewegt hat. Im Schwebeflug fasst die Sim die
-           Kamera gar nicht an -> Maus gehört komplett dem Nutzer.
+        JEDEN Frame nachführen, nie mit einer Totzone arbeiten: eine Totzone lässt die
+        Kamera in Sprüngen von ihrer Größe nachhaken, und genau das sieht man als
+        Ruckeln (bei fixierter Kamera war die Bewegung ja sichtbar flüssig). Damit die
+        Maus trotzdem frei bleibt, pausiert `suspend_camera()` die Nachführung
+        vollständig, solange Shift gehalten wird.
         """
         self._update_ground_marker(pos)
-        if not (self._gui and self._camera_follow):
+        if not (self._gui and self._camera_follow) or self._camera_suspended:
             return
         cid = self._env.CLIENT
         self._cam_target += CAM_LERP * (np.asarray(pos, dtype=float) - self._cam_target)
 
         cam = p.getDebugVisualizerCamera(physicsClientId=cid)
-        current_target = np.asarray(cam[11], dtype=float)
-        if np.linalg.norm(self._cam_target - current_target) < CAM_MIN_MOVE:
-            return                                   # Maus nicht stören
-        yaw, pitch, dist = cam[8], cam[9], cam[10]
+        yaw, pitch, dist = cam[8], cam[9], cam[10]   # Maus-Zoom/-Winkel übernehmen
         p.resetDebugVisualizerCamera(dist, yaw, pitch, self._cam_target.tolist(),
                                      physicsClientId=cid)
 

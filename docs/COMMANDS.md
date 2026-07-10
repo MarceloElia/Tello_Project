@@ -114,9 +114,18 @@ The PyBullet window must have focus. Hold a key to fly, release to hover.
 | `l` | land | `a` / `d` | left / right |
 | `space` | hover (stop) | `r` / `f` | up / down |
 | `q` | quit | `e` / `z` | rotate cw / ccw |
+| `c` | camera follow on/off | **`shift`** (hold) | camera mode |
+
+**Hold `shift`** to orbit: camera following pauses, the drone hovers, and the mouse is
+yours — drag to rotate around the drone, scroll/trackpad to zoom. Release and the camera
+resumes following, keeping your angle and zoom.
 
 Held keys become a continuous `send_rc_control` setpoint — the same path the gesture
 `--rc` mode uses. `tello-gesture --sim --rc` now works too.
+
+Note the sim disables PyBullet's built-in debug shortcuts (`COV_ENABLE_KEYBOARD_SHORTCUTS`):
+its GUI binds `w` to wireframe, `s` to shadows, `a` to AABB boxes and `l` to constraint
+limits, which would otherwise fire on every WASD keystroke.
 
 ## Tests
 

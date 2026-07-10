@@ -43,9 +43,10 @@ HELP = f"""
    {CAM_TOGGLE}        Kamera folgt    e / z    drehen cw / ccw
    {QUIT}        Beenden
 
-  Maus:  ziehen = um die Drohne kreisen · Scroll = zoomen · Strg+ziehen = schieben
-         Im Schwebeflug fasst die Sim die Kamera nicht an, die Maus gehört dir.
-         Fliegt sie dir davon, mit '{CAM_TOGGLE}' die Nachführung wieder einschalten.
+  Kamera:  SHIFT halten = Kameramodus. Die Nachführung pausiert, die Drohne schwebt.
+           Dann ziehen = um die Drohne kreisen, Scroll/Trackpad = zoomen.
+           Loslassen -> die Kamera folgt wieder, dein Winkel und Zoom bleiben.
+           '{CAM_TOGGLE}' schaltet die Nachführung dauerhaft ab (feste Ansicht).
 
   Halten = fliegen. Loslassen = Hover. Geschwindigkeit: {RC_CRUISE} (RC-Einheiten).
 """
