@@ -1,10 +1,6 @@
-# Tello Control — gesture & voice control for a DJI Tello, fully local
+# Tello Control — gesture & voice control for a DJI Tello (fully local)
 
-Control a DJI Tello drone with **hand gestures** and **spoken commands** — running
-**entirely on-device, no cloud**. A single backend abstraction lets the exact same
-control code drive a software mock, a PyBullet **physics simulation**, or the real
-drone over Wi‑Fi. So the whole system can be developed and tested **without any
-hardware**.
+Control a DJI Tello drone with various methodes from direct inputs to gesture control to voice commands. All functions were firstly tested on a mock version then a local simulation and in the end on the hardware. It´s meant for grasping the workflow from implementing the libraries, sending direct commands to the Hardware ot the local model and verifying the movements. Outside of the controling functionality of this repo it´s also designed to work semelsy with Coding AI-Models and run them as efficiently and perfamative as possible.
 
 [![Tests](https://github.com/MarceloElia/Tello_Project/actions/workflows/tests.yml/badge.svg)](https://github.com/MarceloElia/Tello_Project/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
@@ -16,7 +12,7 @@ hardware**.
 
 ## Demo
 
-All three clips are real flights with the physical Tello, not the simulator.
+All three clips are real flights with the physical Tello.
 
 **Gesture control** — a held hand pose maps to a discrete 30 cm move.
 
@@ -33,7 +29,7 @@ command, so the drone moves the moment the gesture is recognised.
 ▶ [Full clip (47 s, with sound)](https://github.com/user-attachments/assets/5afec26c-a6a6-484a-98b8-738a247a553b)
 
 **Voice control** — wake word "Drohne", then German speech → Whisper → Ollama →
-validated JSON. Worth watching with sound on; everything runs locally on the laptop.
+validated JSON. Watch with sound; everything runs locally on the laptop.
 
 https://github.com/user-attachments/assets/0d656712-5195-4bd6-93da-4e94c118456d
 
@@ -41,9 +37,7 @@ https://github.com/user-attachments/assets/0d656712-5195-4bd6-93da-4e94c118456d
 
 ## Why this project
 
-Drones are unforgiving to debug. A wrong sign in a movement command or a flaky gesture
-classifier does not raise an exception; it crashes hardware. So the whole system is built
-so that the risky parts can be hardened without a drone in the room.
+In my humble opinion drones are just way more fun to watch and control than any land moving robot, especially in such a project scope. So even though most ground projects would be easier to control and have a lower risk of crashing into the wall that risk is the exact reason why it is more interesting. Since i don´t have a pile of these drones laying around i had to test them serveralfold to ensure safty via the mock and the simulation.
 
 A `DroneController` hides the backend. The same gesture and voice code runs against a
 software mock, a PyBullet physics simulation, or the real Tello — switching is a single
