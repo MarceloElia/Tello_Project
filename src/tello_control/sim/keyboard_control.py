@@ -21,10 +21,13 @@ import time
 
 import pybullet as p
 
+import math
+
 from tello_control.core.controller import DroneController
 from tello_control.sim.keyboard_map import (
     CAM_TOGGLE, HELP, HOVER, LAND, QUIT, TAKEOFF, keys_to_velocity,
 )
+from tello_control.sim.tuning_panel import TuningPanel, pid_arrays
 
 LOOP_HZ = 60
 
@@ -62,15 +65,20 @@ def main() -> int:
     ctrl = DroneController(
         backend="sim", verbose=True,
         backend_kwargs={"gui": True, "speed": args.speed,
-                        "camera_follow": not args.no_follow, "cooperative": True},
+                        "camera_follow": not args.no_follow, "cooperative": True,
+                        "show_gui_panel": True},
     )
     print("Akku:", ctrl.connect(), "%")
     print(HELP)
+    print("  Regler-Panel links im Fenster: Speed/Beschleunigung und PID-Gains live.\n")
 
-    client_id = ctrl.drone.client_id
+    drone = ctrl.drone
+    client_id = drone.client_id
+    panel = TuningPanel(client_id)
     period = 1.0 / LOOP_HZ
     flying = False
     follow = not args.no_follow
+    back_to_menu = False
 
     try:
         while True:
@@ -80,13 +88,33 @@ def main() -> int:
             if QUIT in just:
                 break
 
+            # --- Regler-Panel: Slider lesen, Buttons prüfen ------------------
+            if panel.clicked("menu"):
+                back_to_menu = True
+                break
+            if panel.clicked("defaults"):
+                panel.reset_to_defaults()      # legt Slider+Buttons neu an
+                drone.reset_pid_state()
+                print("Defaults wiederhergestellt")
+            if panel.clicked("reset_pid"):
+                drone.reset_pid_state()
+                print("PID-Zustand zurückgesetzt")
+
+            v = panel.read()
+            drone.set_flight_limits(
+                cruise=v["cruise_ms"], max_acc=v["max_acc"],
+                yaw_rate=math.radians(v["yaw_rate"]), yaw_acc=math.radians(v["yaw_acc"]),
+            )
+            drone.set_pid_gains(**pid_arrays(v["p_xy"], v["p_z"], v["i_xy"],
+                                             v["d_xy"], v["d_z"]))
+
             # Shift = Kameramodus: Nachführung pausiert (Maus-Drag/Zoom gehören dem
             # Nutzer) und die Drohne schwebt, damit sie beim Umsehen nicht wegfliegt.
-            ctrl.drone.suspend_camera(shift)
+            drone.suspend_camera(shift)
 
             if CAM_TOGGLE in just:
                 follow = not follow
-                ctrl.drone.set_camera_follow(follow)
+                drone.set_camera_follow(follow)
                 print("Kamera folgt:", "an" if follow else "aus (fixe Ansicht)")
 
             if TAKEOFF in just and not flying:
@@ -98,7 +126,8 @@ def main() -> int:
                 flying = False
 
             if flying:
-                ctrl.send_rc_control(*((0, 0, 0, 0) if shift else keys_to_velocity(held)))
+                rc = (0, 0, 0, 0) if shift else keys_to_velocity(held, int(v["rc_cruise"]))
+                ctrl.send_rc_control(*rc)
 
             ctrl.tick()          # RC -> Logik-Pose -> Physik (immer im Main-Thread)
 
@@ -119,6 +148,8 @@ def main() -> int:
             print("Konnte nicht sauber landen:", e)
         ctrl.disconnect()
 
+    if back_to_menu:
+        print("Zurück zum Menü.")
     return 0
 
 

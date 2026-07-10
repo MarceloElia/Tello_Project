@@ -127,6 +127,33 @@ Note the sim disables PyBullet's built-in debug shortcuts (`COV_ENABLE_KEYBOARD_
 its GUI binds `w` to wireframe, `s` to shadows, `a` to AABB boxes and `l` to constraint
 limits, which would otherwise fire on every WASD keystroke.
 
+### Live tuning panel
+
+This mode opens PyBullet's side panel with live sliders — change them mid-flight and watch
+the behaviour change. Three buttons sit below: **back to menu**, **reset PID state**, and
+**restore defaults**.
+
+| Slider | Range | Default | What it does |
+|---|---|---|---|
+| Speed | 0.1–2.0 m/s | 0.6 | how fast the setpoint travels |
+| Beschl. | 0.2–5.0 m/s² | 1.2 | setpoint acceleration; low = gentle, high = snappy |
+| Drehrate | 10–360 °/s | 90 | yaw speed |
+| Drehbeschl. | 30–720 °/s² | 240 | yaw acceleration |
+| RC-Speed | 10–100 | 40 | how fast a held key flies |
+| PID P xy / P z | 0.05–1.2 / 0.2–2.5 | 0.4 / 1.25 | position gain — **this is what causes overshoot** |
+| PID I xy | 0.0–0.3 | 0.05 | integral gain |
+| PID D xy / D z | 0.0–0.8 / 0.0–1.5 | 0.2 / 0.5 | damping |
+
+Try `P xy = 0.9`: the drone overshoots its target by roughly 100 %, the same effect
+`control_lab.py` plots offline. After a large gain change, hit **reset PID state** —
+`DSLPIDControl` keeps an integral term, and a stale one gets multiplied by the new gain.
+
+The torque gains (`P/I/D_COEFF_TOR`, values around 70000) are deliberately not exposed;
+small changes there destabilise attitude control immediately.
+
+The panel needs `COV_ENABLE_GUI=1`, so only this mode shows PyBullet's side panels — the
+cube demo and the gesture sim keep the clean view used for the demo videos.
+
 ## Tests
 
 ```bash

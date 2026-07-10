@@ -9,6 +9,27 @@
 
 **Stand:** 2026-07-10
 **Aktive Phase:** A3 Kern fertig (PyBullet-Sim) · A0 + A1 + A2 + A3-Kern stehen
+**Letztes Ergebnis (2026-07-10, Regler-Panel):** Live-Slider im Sim-Fenster.
+- Neues Modul `sim/tuning_panel.py`: Slider für Flugparameter (Speed, Beschleunigung,
+  Drehrate/-beschl., RC-Speed) und PID-Positions-Gains (`P/I/D_COEFF_FOR`), plus Buttons
+  „Zurück zum Menü", „PID-Zustand zurücksetzen", „Defaults". Reine Spec/Mathematik von
+  der PyBullet-Schicht getrennt (wie `keyboard_map.py`) → 8 Tests ohne PyBullet.
+- `PyBulletBackend`: Flugparameter sind jetzt Instanzwerte statt Modulkonstanten;
+  neu `set_flight_limits()`, `set_pid_gains()`, `reset_pid_state()`. Neues Argument
+  `show_gui_panel` (default aus) — die Slider brauchen `COV_ENABLE_GUI=1`, und das
+  Seitenpanel soll nicht in Würfel-Demo und Demo-Videos hängen.
+- **Integrator-Falle:** `DSLPIDControl` hält `integral_pos_e`. Wird `I` live hochgezogen,
+  multipliziert der neue Gain einen alten, aufgelaufenen Fehler → Schlag. Daher der
+  Reset-Button; `reset_to_defaults()` setzt den Zustand gleich mit zurück.
+- **Beim Testen gefunden:** Debug-Parameter existieren nur mit GUI. In `p.DIRECT` wirft
+  `readUserDebugParameter` einen `pybullet.error`. Das Panel degradiert jetzt still zu
+  „Defaults, nie geklickt" (`available`-Flag), statt die Flugschleife mitzureißen.
+- **Drehmoment-Gains bewusst nicht exponiert** (`_TOR`, ~70000): destabilisieren die
+  Lageregelung sofort. Ein Test hält das fest.
+- `sim/launcher.py`: Menüpunkt 6 „Tastatursteuerung + Regler". Der Menü-Button beendet
+  nur die Sim; der Launcher zeigt danach ohnehin wieder sein Menü.
+- 151 Tests grün. **Offen:** GUI-Live-Lauf — ob die Slider erscheinen und ob `P xy = 0.9`
+  sichtbar aufschwingt, lässt sich headless nicht prüfen.
 **Letztes Ergebnis (2026-07-10, Sim-Qualität):** Ruckeln behoben, RC in der Sim, Tastatur.
 - **Ursache 1 (blockierend, `demo.py --backend sim`):** `_sim_goto` führte den Sollwert
   geschwindigkeits-, aber nicht *beschleunigungs*begrenzt: ab Schritt 1 volle 0,6 m/s,

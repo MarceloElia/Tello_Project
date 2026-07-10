@@ -16,6 +16,7 @@ Menü:
     3  Gestensteuerung gegen Sim (tello_control.gesture.app --sim)
     4  Sprachsteuerung gegen Sim (tello_control.voice.app --sim)
     5  Sprachsteuerung, Dauerhören (tello_control.voice.app --sim --continuous)
+    6  Tastatursteuerung + Regler-Panel (tello_control.sim.keyboard_control)
     q  beenden
 """
 
@@ -28,6 +29,7 @@ OPTIONS = {
     "3": ("Gestensteuerung gegen Sim",   ["-m", "tello_control.gesture.app", "--sim"]),
     "4": ("Sprachsteuerung gegen Sim",   ["-m", "tello_control.voice.app", "--sim"]),
     "5": ("Sprachsteuerung Dauerhören",  ["-m", "tello_control.voice.app", "--sim", "--continuous"]),
+    "6": ("Tastatursteuerung + Regler",  ["-m", "tello_control.sim.keyboard_control"]),
 }
 
 

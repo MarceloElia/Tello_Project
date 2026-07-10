@@ -61,7 +61,7 @@ DROP_RGB    = [0.20, 0.35, 0.75]         # Lotlinie, gegen Beige gut sichtbar
 
 class PyBulletBackend(MockTello):
     def __init__(self, verbose=True, gui=True, speed=2.0, camera_follow=True,
-                 cooperative=False):
+                 cooperative=False, show_gui_panel=False):
         """
         speed: Wiedergabe-Geschwindigkeit. 1.0 = Echtzeit, 2.0 = doppelt so schnell,
                <=0 = so schnell wie möglich (kein Bremsen).
@@ -72,9 +72,18 @@ class PyBulletBackend(MockTello):
             Sprache), bei denen die Webcam-Anzeige flüssig bleiben muss und PyBullet
             (Metal/OpenGL) zwingend im Main-Thread laufen muss. Scripts (demo.py)
             lassen es auf False → blockierendes Anfliegen wie gehabt.
+        show_gui_panel: PyBullets Seitenpanel einblenden. Nötig, damit die Slider aus
+            tuning_panel.py sichtbar sind. Default aus, weil das Panel sonst in der
+            Würfel-Demo und den Demo-Videos im Bild hängt.
         """
         super().__init__(verbose=verbose)
         self._gui = gui
+        self._show_gui_panel = show_gui_panel
+        # Flugparameter als Instanzwerte: zur Laufzeit über set_flight_limits() änderbar.
+        self._cruise = CRUISE_MS
+        self._max_acc = MAX_ACC
+        self._yaw_rate = YAW_RATE
+        self._yaw_acc = YAW_ACC
         self._speed = speed
         self._camera_follow = camera_follow
         self._cooperative = cooperative
@@ -102,8 +111,8 @@ class PyBulletBackend(MockTello):
         )
         self._ctrl = DSLPIDControl(drone_model=DroneModel.CF2X)
         self._obs, _ = self._env.reset()
-        self._ramp = VectorRamp(self._obs[0][0:3], CRUISE_MS, MAX_ACC)
-        self._yaw_ramp = YawRamp(float(self._obs[0][9]), YAW_RATE, YAW_ACC)
+        self._ramp = VectorRamp(self._obs[0][0:3], self._cruise, self._max_acc)
+        self._yaw_ramp = YawRamp(float(self._obs[0][9]), self._yaw_rate, self._yaw_acc)
         self._cam_target = np.array(self._obs[0][0:3], dtype=float)
         self._setup_camera()
         self._setup_scene()
@@ -121,7 +130,10 @@ class PyBulletBackend(MockTello):
         if not self._gui:
             return
         cid = self._env.CLIENT
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0, physicsClientId=cid)
+        # Das Seitenpanel beherbergt die Slider aus tuning_panel.py. Ohne Panel bleiben
+        # sie unsichtbar (lesbar wären sie trotzdem).
+        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1 if self._show_gui_panel else 0,
+                                   physicsClientId=cid)
         p.configureDebugVisualizer(p.COV_ENABLE_SHADOWS, 1, physicsClientId=cid)
         p.configureDebugVisualizer(p.COV_ENABLE_KEYBOARD_SHORTCUTS, 0, physicsClientId=cid)
         p.configureDebugVisualizer(p.COV_ENABLE_MOUSE_PICKING, 0, physicsClientId=cid)
@@ -218,6 +230,39 @@ class PyBulletBackend(MockTello):
         """Kamera-Nachführung dauerhaft an/aus (Taste 'c' in keyboard_control)."""
         self._camera_follow = bool(enabled)
 
+    # ---------- Live-Tuning (tuning_panel.py) ----------
+    def set_flight_limits(self, cruise=None, max_acc=None, yaw_rate=None, yaw_acc=None):
+        """Sollwert-Grenzen zur Laufzeit ändern. yaw_* in rad/s bzw. rad/s²."""
+        if cruise is not None:
+            self._cruise = float(cruise)
+        if max_acc is not None:
+            self._max_acc = float(max_acc)
+        if yaw_rate is not None:
+            self._yaw_rate = float(yaw_rate)
+        if yaw_acc is not None:
+            self._yaw_acc = float(yaw_acc)
+        if self._ramp is not None:
+            self._ramp.v_max, self._ramp.a_max = self._cruise, self._max_acc
+        if self._yaw_ramp is not None:
+            self._yaw_ramp.v_max, self._yaw_ramp.a_max = self._yaw_rate, self._yaw_acc
+
+    def set_pid_gains(self, **arrays):
+        """z.B. set_pid_gains(**pid_arrays(...)) — setzt P/I/D_COEFF_FOR auf dem Regler."""
+        if self._ctrl is None:
+            return
+        for name, value in arrays.items():
+            setattr(self._ctrl, name, np.asarray(value, dtype=float))
+
+    def reset_pid_state(self):
+        """Integrator und Fehlerhistorie leeren.
+
+        DSLPIDControl hält `integral_pos_e`. Wird I live hochgezogen, multipliziert der
+        neue Gain einen alten, aufgelaufenen Integralfehler — die Drohne bekommt einen
+        Schlag. Nach jeder größeren Gain-Änderung also zurücksetzen.
+        """
+        if self._ctrl is not None:
+            self._ctrl.reset()
+
     def suspend_camera(self, suspended: bool) -> None:
         """Nachführung kurzzeitig aussetzen (Shift halten), damit die Maus frei ist.
 
@@ -300,7 +345,8 @@ class PyBulletBackend(MockTello):
 
         dist = float(np.linalg.norm(final - self._ramp.pos))
         # Anfahrt (inkl. Beschleunigen/Bremsen) + Einschwingen, mit Sicherheits-Cap.
-        budget_s = dist / max(CRUISE_MS, 1e-6) + CRUISE_MS / MAX_ACC + 3.0
+        # Instanzwerte, nicht die Konstanten: die Slider dürfen das Zeitbudget mitziehen.
+        budget_s = dist / max(self._cruise, 1e-6) + self._cruise / self._max_acc + 3.0
         max_steps = int(min(MAX_FLY_S * 4, budget_s) * CTRL_FREQ)
 
         for i in range(max_steps):
