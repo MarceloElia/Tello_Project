@@ -343,7 +343,10 @@ class PyBulletBackend(MockTello):
             self._obs, _, _, _, _ = self._env.step(rpm.reshape(1, 4))
             return True
         except Exception as e:
-            self._say(f"⛔ Physik-Fehler: {e}. Notlandung.")
+            # Bewusst breit: die Sim soll bei JEDEM Regel-/Physikfehler sicher
+            # landen statt zu crashen. Den Ausnahmetyp mitloggen, damit ein echter
+            # Programmierfehler nicht als harmloser "Physik-Fehler" untergeht.
+            self._say(f"⛔ Physik-Fehler [{type(e).__name__}]: {e}. Notlandung.")
             super().emergency()
             return False
 
@@ -443,7 +446,9 @@ class PyBulletBackend(MockTello):
         super().emergency()                     # Motoren aus, kein Flug mehr
 
     def _after_move(self):
-        # cooperative: nur Logik-Pose gesetzt (super() im Aufrufer), Physik via tick()
+        # Template-Hook aus MockTello: die geerbten move_*/rotate_*-Methoden rufen
+        # ihn am Ende auf, nachdem die Logik-Pose steht. Wir treiben die Physik nach.
+        # cooperative: nur Logik-Pose gesetzt, Physik läuft stattdessen in tick().
         if not self._cooperative:
             self._sim_goto(self.x, self.y, self.z, self.yaw)
 
@@ -460,17 +465,7 @@ class PyBulletBackend(MockTello):
         self._ramp = self._yaw_ramp = self._cam_target = self._drop_line = None
         super().end()
 
-
-# Generate the 8 movement overrides: each delegates to MockTello's implementation
-# (safety checks + pose update + logging) then drives physics to the new pose.
-def _make_move_override(method_name: str):
-    def _override(self, val):
-        getattr(MockTello, method_name)(self, val)
-        self._after_move()
-    _override.__name__ = method_name
-    return _override
-
-for _n in ("move_forward", "move_back", "move_left", "move_right",
-           "move_up", "move_down", "rotate_clockwise", "rotate_counter_clockwise"):
-    setattr(PyBulletBackend, _n, _make_move_override(_n))
-del _n, _make_move_override
+# Die acht Flugmethoden werden von MockTello geerbt: sie setzen Pose/Log/Checks
+# und rufen am Ende self._after_move() auf — das oben überschrieben ist und die
+# Physik nachtreibt. Kein dynamisches setattr mehr nötig; ein neuer 9. Move-Befehl
+# in MockTello nimmt automatisch teil, ohne dass die Sim angefasst werden muss.

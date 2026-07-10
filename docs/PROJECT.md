@@ -7,26 +7,24 @@ date: "2026"
 
 # 1. Overview & motivation
 
-**Tello Control** lets a DJI Tello drone be flown by **hand gestures** and **spoken
-commands**, with everything running **locally on the laptop — no cloud, no internet
-during flight**. The defining design idea is a *hardware-optional* architecture: the
-entire control stack can be developed, tested and demonstrated **without owning or
-risking a real drone**, because a single abstraction can drive three interchangeable
-backends:
+Tello Control lets a DJI Tello drone be flown by hand gestures and spoken commands, with
+everything running locally on the laptop. No cloud, and no internet while the drone is in
+the air. The defining idea is a *hardware-optional* architecture: the whole control stack
+can be built, tested and shown off without owning or risking a real drone, because one
+abstraction drives three interchangeable backends:
 
-- a **software mock** (pure logic, instant, no Wi-Fi),
-- a **PyBullet physics simulation** (real quadrotor dynamics in a 3D window),
-- the **real Tello** over Wi-Fi.
+- a software mock (pure logic, instant, no Wi-Fi),
+- a PyBullet physics simulation (real quadrotor dynamics in a 3D window),
+- the real Tello over Wi-Fi.
 
-Why this matters: drones are unforgiving to debug. A wrong sign in a movement
-command, a missing safety check, or a flaky gesture classifier becomes a crashed
-drone. By making the mock and the simulation first-class backends behind the *same*
-interface, the risky parts (gesture logic, language parsing, command validation) are
-hardened off-hardware first, and only then pointed at the real drone by changing one
-argument.
+This matters because drones are unforgiving to debug. A wrong sign in a movement command,
+a missing safety check or a flaky gesture classifier all end the same way, with a crashed
+drone. Putting the mock and the simulation behind the *same* interface as the real drone
+lets the risky parts (gesture logic, language parsing, command validation) get hardened
+off-hardware first, and only then pointed at real hardware by changing one argument.
 
-This document explains **what each component does, which libraries are used, and how
-they connect**.
+This document explains what each component does, which libraries it uses, and how they
+connect.
 
 # 2. System architecture
 
@@ -57,10 +55,9 @@ gesture and voice modules only ever see this interface; they never import a conc
 drone class. Switching from simulation to a real flight is literally one argument:
 `DroneController(backend="sim")` → `DroneController(backend="real")`.
 
-The real-drone class (`djitellopy.Tello`) is imported **lazily**, only when
-`backend="real"` is requested, so the package runs fine on a machine that never
-connects to a drone. The same is true for the PyBullet backend, which lives in a
-separate conda environment.
+The real-drone class (`djitellopy.Tello`) is imported lazily, only when `backend="real"`
+is requested, so the package runs fine on a machine that never connects to a drone. The
+same is true for the PyBullet backend, which lives in a separate conda environment.
 
 ## 2.2 Data flow
 
@@ -100,10 +97,10 @@ identical to the mock; the simulation just adds real flight dynamics on top.
 Pipeline: **webcam → MediaPipe → classifier → debounce → command (async)**.
 
 - **`detector.py`** runs MediaPipe's `HandLandmarker` (Tasks API) on each webcam
-  frame and classifies the hand. Classification is **angle-based, not
-  position-based**: a finger counts as extended when the joint angle at its PIP
-  joint (MCP→PIP→TIP) is large (~straight). This is robust to hand rotation, tilt
-  and size, which a position-based check is not. Thumb direction
+  frame and classifies the hand. Classification works from joint angles rather than
+  fingertip positions: a finger counts as extended when the angle at its PIP joint
+  (MCP→PIP→TIP) is large (~straight). That holds up under hand rotation, tilt and
+  size, which a position-based check does not. Thumb direction
   is read from the thumb tip relative to the knuckle line; pointing direction uses
   the index finger's angle to the vertical with a ±30° dead zone for "forward".
 - **`command_map.py`** maps each `Gesture` to a controller call, with a **debounce**:
@@ -133,7 +130,7 @@ fire-and-forget. Motion begins the moment the gesture is recognised.
 frame. That smooths acceleration and braking, and it makes the frame debounce
 unnecessary as a side effect: a single misclassified frame nudges the setpoint by one
 step and is pulled straight back, so it never becomes visible motion. A dead zone
-suppresses jitter near zero. `--rc --sim` deliberately raises — driving a velocity
+suppresses jitter near zero. `--rc --sim` raises on purpose: driving a velocity
 setpoint through the PyBullet PID controller is a separate piece of work.
 
 ## 3.3 Voice control — `tello_control.voice`
@@ -158,8 +155,8 @@ Pipeline: **mic → VAD + wake word → Whisper → Ollama → JSON → validati
   ("lande", "vor 50 cm", "dreh dich rechts"). Anchored regexes map the transcript
   straight onto the command schema, saving the ~0.8 s Ollama round-trip. Anything with
   conjunctions, or any value outside the SDK bounds, returns `None` and falls through to
-  `llm_parser.parse()`. Crucially the fastpath emits its result through the **same**
-  `validate_list()` as the LLM path — it is a latency shortcut, never a safety bypass.
+  `llm_parser.parse()`. Crucially the fastpath emits its result through the same
+  `validate_list()` as the LLM path, so it is a latency shortcut, never a safety bypass.
 - **`commands.py`** is the **safety-critical validation layer**. The LLM returns a
   JSON command list; every command is checked against an allow-list of actions and
   the SDK bounds *before anything reaches the drone*. The contract is all-or-nothing:
@@ -180,11 +177,11 @@ Runs in the separate conda environment `tello-sim` (see §5).
   physics is advanced one slice per frame via `tick()` from the main thread — needed
   for interactive gesture/voice loops, because PyBullet's GUI must run on the main
   thread.
-- **`control_lab.py`** is a small **control-engineering lab**: it flies a 1-metre
-  step in X with different proportional gains and measures overshoot and settling
-  time, saving a plot to `results/control_lab_step.png`. This is something the real
-  Tello can *not* do — the Tello SDK only exposes velocity setpoints, not motor-level
-  access — which is exactly why it lives in the simulation.
+- **`control_lab.py`** is a small control-engineering lab: it flies a 1-metre step in
+  X with different proportional gains and measures overshoot and settling time, saving
+  a plot to `results/control_lab_step.png`. The real Tello can't do this, because its
+  SDK only exposes velocity setpoints and no motor-level access. That is exactly why it
+  lives in the simulation.
 
 ![PID step response measured in the simulation: a gentle gain (P=0.20), the default
 (P=0.40), and an aggressive gain (P=0.90) that overshoots heavily.](images/control_lab_step.png)

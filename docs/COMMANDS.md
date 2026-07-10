@@ -163,7 +163,7 @@ cube demo and the gesture sim keep the clean view used for the demo videos.
 ## Tests
 
 ```bash
-pytest                                        # hardware-free suite (97 tests)
+pytest                                        # hardware-free suite (151 tests)
 ```
 
 ## Simulation smoothness benchmark

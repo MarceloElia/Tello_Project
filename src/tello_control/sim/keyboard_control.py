@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import argparse
 import time
+from typing import cast
 
 import pybullet as p
 
 import math
 
 from tello_control.core.controller import DroneController
+from tello_control.sim.pybullet_backend import PyBulletBackend
 from tello_control.sim.keyboard_map import (
     CAM_TOGGLE, HELP, HOVER, LAND, QUIT, TAKEOFF, keys_to_velocity,
 )
@@ -88,7 +90,11 @@ def main() -> int:
     print(HELP)
     print("  Regler-Panel links im Fenster: Speed/Beschleunigung und PID-Gains live.\n")
 
-    drone = ctrl.drone
+    # In diesem Sim-only-Modul ist ctrl.drone immer die PyBulletBackend-Instanz
+    # (backend="sim" oben). Der Cast macht die Sim-spezifische API (client_id,
+    # set_pid_gains, suspend_camera …) am Rand explizit typsicher, ohne dass diese
+    # Methoden ins schlanke DroneBackend-Protokoll wandern müssen.
+    drone = cast(PyBulletBackend, ctrl.drone)
     client_id = drone.client_id
     panel = TuningPanel(client_id)
     period = 1.0 / LOOP_HZ

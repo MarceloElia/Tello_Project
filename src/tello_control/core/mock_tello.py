@@ -37,7 +37,7 @@ class TelloException(Exception):
 
 class MockTello:
 
-    def __init__(self, verbose=True, start_battery=86):
+    def __init__(self, verbose: bool = True, start_battery: int = 86) -> None:
         self.verbose = verbose
         self.connected = False
         self.flying = False
@@ -46,65 +46,73 @@ class MockTello:
         self.y = 0.0
         self.z = 0.0
         self.yaw = 0.0                   # Grad
-        self.log = []                    # Liste protokollierter Befehle
-        self._t0 = None
+        self.log: list[dict] = []        # Liste protokollierter Befehle
+        self._t0: float | None = None
         self._rc = (0, 0, 0, 0)          # gehaltener RC-Sollwert (lr, fb, ud, yaw)
-        self._rc_t = None                # monotone Zeit des letzten tick() (RC)
+        self._rc_t: float | None = None  # monotone Zeit des letzten tick() (RC)
 
     # ---------- interne Helfer ----------
-    def _elapsed(self):
+    def _elapsed(self) -> float:
         return 0.0 if self._t0 is None else round(time.time() - self._t0, 2)
 
-    def _record(self, command):
+    def _record(self, command: str) -> None:
         self.log.append({
             "t": self._elapsed(), "cmd": command,
             "x": round(self.x), "y": round(self.y),
             "z": round(self.z), "yaw": round(self.yaw) % 360,
         })
 
-    def _say(self, msg):
+    def _say(self, msg: str) -> None:
         if self.verbose:
             print(msg)
 
-    def _check_connected(self):
+    def _check_connected(self) -> None:
         if not self.connected:
             raise TelloException("Nicht verbunden. Erst connect() aufrufen.")
 
-    def _check_flying(self, action):
+    def _check_flying(self, action: str) -> None:
         if not self.flying:
             raise TelloException(f"'{action}' nicht möglich: Drohne ist nicht in der Luft.")
 
-    def _check_dist(self, cm):
+    def _check_dist(self, cm: int) -> None:
         if not (DIST_MIN <= cm <= DIST_MAX):
             raise TelloException(
                 f"Distanz {cm} cm außerhalb des erlaubten Bereichs "
                 f"({DIST_MIN}-{DIST_MAX} cm)."
             )
 
-    def _check_angle(self, deg):
+    def _check_angle(self, deg: int) -> None:
         if not (ANGLE_MIN <= deg <= ANGLE_MAX):
             raise TelloException(
                 f"Winkel {deg}° außerhalb des erlaubten Bereichs "
                 f"({ANGLE_MIN}-{ANGLE_MAX}°)."
             )
 
-    def _drain(self, amount=1):
+    def _drain(self, amount: int = 1) -> None:
         self.battery = max(0, self.battery - amount)
 
+    def _after_move(self) -> None:
+        """Hook nach jedem diskreten move_*/rotate_* (Template-Method).
+
+        Basis: No-Op. ``PyBulletBackend`` überschreibt ihn und treibt die Physik
+        zur soeben gesetzten Logik-Pose nach — so muss die Sim keine acht
+        Flugmethoden nachbauen, sie hängt sich nur an diesen einen Punkt.
+        """
+
     # ---------- API wie djitellopy.Tello ----------
-    def connect(self):
+    def connect(self) -> None:
         self.connected = True
         self._t0 = time.time()
         self._say("🔌 Mock-Drohne verbunden.")
         self._record("connect")
 
-    def get_battery(self):
+    def get_battery(self) -> int:
         return self.battery
 
-    def get_height(self):
+    def get_height(self) -> int:
         return round(self.z)
 
-    def takeoff(self):
+    def takeoff(self) -> None:
         self._check_connected()
         self.flying = True
         self.z = 100                     # echte Tello steigt auf ~1 m
@@ -112,7 +120,7 @@ class MockTello:
         self._say(f"🛫 Takeoff  →  Höhe {self.z:.0f} cm")
         self._record("takeoff")
 
-    def land(self):
+    def land(self) -> None:
         self._check_flying("land")
         self.z = 0
         self.flying = False
@@ -120,68 +128,68 @@ class MockTello:
         self._say(f"🛬 Landung   →  {self.position_str()}")
         self._record("land")
 
-    def emergency(self):
+    def emergency(self) -> None:
         self.flying = False
         self._say("⛔ NOT-STOPP: Motoren sofort aus.")
         self._record("emergency")
 
     # Translation relativ zur aktuellen Blickrichtung
-    def _translate(self, forward=0, right=0, up=0):
+    def _translate(self, forward: float = 0, right: float = 0, up: float = 0) -> None:
         rad = math.radians(self.yaw)
         self.x += forward * math.sin(rad) + right * math.cos(rad)
         self.y += forward * math.cos(rad) - right * math.sin(rad)
         self.z += up
 
-    def move_forward(self, cm):
-        self._check_flying("move_forward"); self._check_dist(cm)
-        self._translate(forward=cm); self._drain()
-        self._say(f"⬆️  forward {cm} cm  →  {self.position_str()}")
-        self._record(f"forward {cm}")
+    # Die acht diskreten Manöver teilen sich denselben Ablauf (Check → Translation
+    # → Akku → Log → Hook); nur Achse/Vorzeichen/Label unterscheiden sich. Statt
+    # den Ablauf achtmal zu kopieren, bündeln ihn zwei Helfer — die öffentlichen
+    # Methoden bleiben aber einzeln stehen (grep-/IDE-sichtbar, anders als eine
+    # dynamisch erzeugte Methodenliste).
+    def _linear_move(self, action: str, icon: str, label: str, cm: int,
+                     *, forward: float = 0, right: float = 0, up: float = 0) -> None:
+        self._check_flying(action)
+        self._check_dist(cm)
+        self._translate(forward=forward, right=right, up=up)
+        self._drain()
+        self._say(f"{icon}  {label} {cm} cm  →  {self.position_str()}")
+        self._record(f"{label} {cm}")
+        self._after_move()
 
-    def move_back(self, cm):
-        self._check_flying("move_back"); self._check_dist(cm)
-        self._translate(forward=-cm); self._drain()
-        self._say(f"⬇️  back {cm} cm  →  {self.position_str()}")
-        self._record(f"back {cm}")
+    def _rotate(self, action: str, icon: str, label: str, deg: int, *, sign: int) -> None:
+        self._check_flying(action)
+        self._check_angle(deg)
+        self.yaw = (self.yaw + sign * deg) % 360
+        self._drain()
+        self._say(f"{icon}  rotate {label} {deg}°  →  yaw {self.yaw:.0f}°")
+        self._record(f"{label} {deg}")
+        self._after_move()
 
-    def move_right(self, cm):
-        self._check_flying("move_right"); self._check_dist(cm)
-        self._translate(right=cm); self._drain()
-        self._say(f"➡️  right {cm} cm  →  {self.position_str()}")
-        self._record(f"right {cm}")
+    def move_forward(self, cm: int) -> None:
+        self._linear_move("move_forward", "⬆️", "forward", cm, forward=cm)
 
-    def move_left(self, cm):
-        self._check_flying("move_left"); self._check_dist(cm)
-        self._translate(right=-cm); self._drain()
-        self._say(f"⬅️  left {cm} cm  →  {self.position_str()}")
-        self._record(f"left {cm}")
+    def move_back(self, cm: int) -> None:
+        self._linear_move("move_back", "⬇️", "back", cm, forward=-cm)
 
-    def move_up(self, cm):
-        self._check_flying("move_up"); self._check_dist(cm)
-        self._translate(up=cm); self._drain()
-        self._say(f"🔼 up {cm} cm  →  {self.position_str()}")
-        self._record(f"up {cm}")
+    def move_right(self, cm: int) -> None:
+        self._linear_move("move_right", "➡️", "right", cm, right=cm)
 
-    def move_down(self, cm):
-        self._check_flying("move_down"); self._check_dist(cm)
-        self._translate(up=-cm); self._drain()
-        self._say(f"🔽 down {cm} cm  →  {self.position_str()}")
-        self._record(f"down {cm}")
+    def move_left(self, cm: int) -> None:
+        self._linear_move("move_left", "⬅️", "left", cm, right=-cm)
 
-    def rotate_clockwise(self, deg):
-        self._check_flying("rotate_clockwise"); self._check_angle(deg)
-        self.yaw = (self.yaw + deg) % 360; self._drain()
-        self._say(f"↻  rotate cw {deg}°  →  yaw {self.yaw:.0f}°")
-        self._record(f"cw {deg}")
+    def move_up(self, cm: int) -> None:
+        self._linear_move("move_up", "🔼", "up", cm, up=cm)
 
-    def rotate_counter_clockwise(self, deg):
-        self._check_flying("rotate_counter_clockwise"); self._check_angle(deg)
-        self.yaw = (self.yaw - deg) % 360; self._drain()
-        self._say(f"↺  rotate ccw {deg}°  →  yaw {self.yaw:.0f}°")
-        self._record(f"ccw {deg}")
+    def move_down(self, cm: int) -> None:
+        self._linear_move("move_down", "🔽", "down", cm, up=-cm)
+
+    def rotate_clockwise(self, deg: int) -> None:
+        self._rotate("rotate_clockwise", "↻", "cw", deg, sign=+1)
+
+    def rotate_counter_clockwise(self, deg: int) -> None:
+        self._rotate("rotate_counter_clockwise", "↺", "ccw", deg, sign=-1)
 
     # ---------- RC-/Geschwindigkeitssteuerung ----------
-    def send_rc_control(self, lr, fb, ud, yaw):
+    def send_rc_control(self, lr: int, fb: int, ud: int, yaw: int) -> None:
         """Gehaltener Geschwindigkeits-Sollwert (wie djitellopy). Nicht blockierend.
 
         Werte werden auf den SDK-Bereich geklemmt und gespeichert; die Pose wird
@@ -189,10 +197,13 @@ class MockTello:
         Aufruf – es ist ein gehaltener Zustand, kein diskretes Manöver.
         """
         self._check_flying("send_rc_control")
-        clamp = lambda v: max(RC_MIN, min(RC_MAX, int(v)))
+
+        def clamp(v: int) -> int:
+            return max(RC_MIN, min(RC_MAX, int(v)))
+
         self._rc = (clamp(lr), clamp(fb), clamp(ud), clamp(yaw))
 
-    def tick(self, dt=None):
+    def tick(self, dt: float | None = None) -> None:
         """Integriert den gehaltenen RC-Sollwert in die Pose.
 
         dt = Sekunden seit dem letzten tick(); ohne Angabe aus der monotonen Uhr.
@@ -212,7 +223,7 @@ class MockTello:
         )
         self.yaw = (self.yaw + yaw * _RC_DEG_PER_S * dt) % 360
 
-    def end(self):
+    def end(self) -> None:
         self._say("🔌 Verbindung beendet.")
 
     @property
@@ -221,10 +232,18 @@ class MockTello:
         return self.flying
 
     # ---------- Auswertung ----------
-    def position_str(self):
+    def pose(self) -> tuple[float, float, float, float]:
+        """Aktuelle simulierte Pose: (x, y, z in cm, yaw in Grad).
+
+        Gekapselter Zugriff für den Controller — der greift so nicht mehr direkt
+        auf die Felder x/y/z/yaw zu (siehe PoseBackend-Protokoll).
+        """
+        return (self.x, self.y, self.z, self.yaw)
+
+    def position_str(self) -> str:
         return f"x={self.x:.0f}  y={self.y:.0f}  z={self.z:.0f}  yaw={self.yaw:.0f}°"
 
-    def print_log(self):
+    def print_log(self) -> None:
         print("\n  Befehlsprotokoll")
         print("  " + "-" * 52)
         print(f"  {'t/s':>5}  {'Befehl':<14}{'x':>6}{'y':>6}{'z':>6}{'yaw':>6}")
@@ -234,17 +253,20 @@ class MockTello:
         print("  " + "-" * 52)
         print(f"  Endposition: {self.position_str()}   Akku: {self.battery}%\n")
 
-    def print_map(self, width=39, height=17):
+    def print_map(self, width: int = 39, height: int = 17) -> None:
         """Zeichnet die Flugbahn von oben (X nach rechts, Y nach oben)."""
         pts = [(e["x"], e["y"]) for e in self.log if e["cmd"] not in ("connect",)]
         if len(pts) < 2:
             return
-        xs = [p[0] for p in pts]; ys = [p[1] for p in pts]
-        minx, maxx = min(xs), max(xs); miny, maxy = min(ys), max(ys)
-        spanx = max(maxx - minx, 1); spany = max(maxy - miny, 1)
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        minx, maxx = min(xs), max(xs)
+        miny, maxy = min(ys), max(ys)
+        spanx = max(maxx - minx, 1)
+        spany = max(maxy - miny, 1)
         grid = [[" "] * width for _ in range(height)]
 
-        def to_cell(x, y):
+        def to_cell(x: float, y: float) -> tuple[int, int]:
             cx = int((x - minx) / spanx * (width - 1))
             cy = int((y - miny) / spany * (height - 1))
             return cx, (height - 1 - cy)   # y oben
@@ -252,8 +274,10 @@ class MockTello:
         for x, y in pts:
             cx, cy = to_cell(x, y)
             grid[cy][cx] = "·"
-        sx, sy = to_cell(*pts[0]); grid[sy][sx] = "S"
-        ex, ey = to_cell(*pts[-1]); grid[ey][ex] = "E"
+        sx, sy = to_cell(*pts[0])
+        grid[sy][sx] = "S"
+        ex, ey = to_cell(*pts[-1])
+        grid[ey][ex] = "E"
 
         print("  Flugbahn von oben  (S = Start, E = Ende)")
         print("  +" + "-" * width + "+")

@@ -94,7 +94,7 @@ Der Graph wird einmalig gebaut und nach Code-Änderungen per `graphify update .`
 aktualisiert. Nur `update` ist reine AST-Analyse; der **erste Build fährt einen
 semantischen LLM-Pass und kostet Tokens**.
 
-In diesem Projekt: **537 Knoten · 807 Kanten · 38 Communities**.
+In diesem Projekt: **776 Knoten · 1114 Kanten · 63 Communities**.
 
 **Gemessen** (`scripts/graphify_benchmark.py`, fünf vorab festgelegte Fragen):
 der Median-Kontextgewinn liegt bei **≈ 4,8×** (Spanne 3,5–22×) – nicht bei den

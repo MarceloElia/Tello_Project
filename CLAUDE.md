@@ -94,7 +94,7 @@ Aufrufe als Modul (`python -m tello_control.gesture.app`) oder via console-scrip
 ## Quick orientation for Claude
 
 - **Einstieg:** `src/tello_control/core/controller.py` + `core/mock_tello.py`
-- **Tests validieren schnell:** `pytest tests/ -q` (hardware-frei, ~2 s, 97 Tests)
+- **Tests validieren schnell:** `pytest tests/ -q` (hardware-frei, ~1 s, 151 Tests)
 - **Gesture und Voice sind unabhängig** — eines kann ohne das andere verstanden/geändert werden.
 - **Mock ≈ 80 % der Logik** — Sim/Real nur für physik-spezifische Fragen nötig.
 - **SDK-Grenzen:** einzelne Quelle in `src/tello_control/core/constants.py`.

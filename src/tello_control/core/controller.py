@@ -12,6 +12,9 @@ Umschalten zwischen Simulation und echtem Flug:
 Sonst ändert sich an deinem Code nichts.
 """
 
+from typing import cast
+
+from tello_control.core.backend import DroneBackend, PoseBackend
 from tello_control.core.mock_tello import MockTello
 
 
@@ -25,7 +28,8 @@ class DroneController:
     Abwärtskompatibel: simulated=True → "mock", simulated=False → "real".
     """
 
-    def __init__(self, backend=None, simulated=None, verbose=True, backend_kwargs=None):
+    def __init__(self, backend: str | None = None, simulated: bool | None = None,
+                 verbose: bool = True, backend_kwargs: dict | None = None) -> None:
         # Backend bestimmen (alte simulated-API weiter unterstützen)
         if backend is None:
             backend = "mock" if (simulated is None or simulated) else "real"
@@ -37,6 +41,7 @@ class DroneController:
         self.simulated = backend in ("mock", "sim")
         kw = backend_kwargs or {}   # z.B. {"gui": True, "realtime": True} für sim
 
+        self.drone: DroneBackend
         if backend == "mock":
             self.drone = MockTello(verbose=verbose, **kw)
         elif backend == "sim":
@@ -50,37 +55,37 @@ class DroneController:
             self.drone = Tello()
 
     # ---- Verbindung & Status ----
-    def connect(self):
+    def connect(self) -> int:
         self.drone.connect()
         return self.battery()
 
-    def battery(self):
+    def battery(self) -> int:
         return self.drone.get_battery()
 
-    def height(self):
+    def height(self) -> int:
         return self.drone.get_height()
 
     # ---- Flug ----
-    def takeoff(self):
+    def takeoff(self) -> None:
         self.drone.takeoff()
 
-    def land(self):
+    def land(self) -> None:
         self.drone.land()
 
-    def emergency(self):
+    def emergency(self) -> None:
         self.drone.emergency()
 
     # ---- Bewegung (klare, kurze Namen für deine Steuerlogik) ----
-    def forward(self, cm):  self.drone.move_forward(cm)
-    def back(self, cm):     self.drone.move_back(cm)
-    def left(self, cm):     self.drone.move_left(cm)
-    def right(self, cm):    self.drone.move_right(cm)
-    def up(self, cm):       self.drone.move_up(cm)
-    def down(self, cm):     self.drone.move_down(cm)
-    def rotate_cw(self, deg):  self.drone.rotate_clockwise(deg)
-    def rotate_ccw(self, deg): self.drone.rotate_counter_clockwise(deg)
+    def forward(self, cm: int) -> None:  self.drone.move_forward(cm)
+    def back(self, cm: int) -> None:     self.drone.move_back(cm)
+    def left(self, cm: int) -> None:     self.drone.move_left(cm)
+    def right(self, cm: int) -> None:    self.drone.move_right(cm)
+    def up(self, cm: int) -> None:       self.drone.move_up(cm)
+    def down(self, cm: int) -> None:     self.drone.move_down(cm)
+    def rotate_cw(self, deg: int) -> None:  self.drone.rotate_clockwise(deg)
+    def rotate_ccw(self, deg: int) -> None: self.drone.rotate_counter_clockwise(deg)
 
-    def send_rc_control(self, lr, fb, ud, yaw):
+    def send_rc_control(self, lr: int, fb: int, ud: int, yaw: int) -> None:
         """Nicht-blockierende Geschwindigkeitssteuerung (RC). Gehaltener Sollwert.
 
         Anders als move_*(): kein Ack-Roundtrip, Bewegung startet sofort. Muss pro
@@ -88,10 +93,10 @@ class DroneController:
         """
         self.drone.send_rc_control(lr, fb, ud, yaw)
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         self.drone.end()
 
-    def tick(self, dt=None):
+    def tick(self, dt: float | None = None) -> None:
         """Treibt einen Zeitschritt: RC-Sollwert integrieren, in der Sim auch Physik.
 
         Pro Frame der interaktiven Haupt-Loop aufrufen.
@@ -102,19 +107,21 @@ class DroneController:
         dt: Sekunden seit dem letzten Aufruf. Ohne Angabe aus der monotonen Uhr;
         Tests übergeben ein festes dt für Determinismus.
         """
-        tick = getattr(self.drone, "tick", None)
-        if tick is not None:
-            tick(dt)
+        # Nur pose-führende Backends (mock/sim) haben tick(); die echte Drohne
+        # führt RC selbst aus. Der Protokoll-Check ersetzt den früheren getattr-Hack.
+        if isinstance(self.drone, PoseBackend):
+            self.drone.tick(dt)
 
     # ---- nur in der Simulation verfügbar ----
-    def position(self):
+    def position(self) -> tuple[float, float, float, float]:
         if not self.simulated:
             raise RuntimeError("Position wird nur im Simulationsmodus mitgeführt.")
-        return (self.drone.x, self.drone.y, self.drone.z, self.drone.yaw)
+        return cast(PoseBackend, self.drone).pose()
 
-    def report(self):
+    def report(self) -> None:
         """Protokoll + Karte ausgeben (nur Simulation)."""
         if not self.simulated:
             return
-        self.drone.print_log()
-        self.drone.print_map()
+        drone = cast(PoseBackend, self.drone)
+        drone.print_log()
+        drone.print_map()

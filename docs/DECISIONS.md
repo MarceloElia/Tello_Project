@@ -78,11 +78,11 @@ recognition. Ramping the setpoint (`VelocityBlender`, max step per axis per fram
 smoothing and single-frame misclassification filtering in one mechanism, so the RC path
 needs no debounce at all. Discrete stays the default because it is what has actually
 been flown on hardware, and because its behaviour is exactly reproducible in the mock.
-**Ruled out:** Replacing discrete moves outright (they are the only mode validated on
-the real drone, and they map cleanly onto the mock's analytic pose model); shortening the
-debounce further (it was already cut 8→5 frames — the remaining latency is the ACK
-round-trip, not the debounce); RC in the simulation (`--rc --sim` raises deliberately —
-feeding a velocity setpoint through `DSLPIDControl` is a separate task, not a flag).
+**Ruled out:** Replacing discrete moves outright (they are the only mode flown on the
+real drone, and they map cleanly onto the mock's analytic pose model); shortening the
+debounce further (it was already cut from 8 frames to 5, and what is left is ACK latency
+rather than debounce); RC in the simulation (`--rc --sim` raises on purpose, because
+feeding a velocity setpoint through `DSLPIDControl` is its own task).
 
 > The command-level model is in `scripts/latency_benchmark.py`. Real numbers await a
 > `--real --rc` flight; the figures there are a model, not a measurement.

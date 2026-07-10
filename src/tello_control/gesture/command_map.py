@@ -55,7 +55,15 @@ class GestureToCommand:
             print(f"[GestureCmd] {msg}")
 
     def feed(self, gesture: Gesture) -> str | None:
-        """Pro Frame aufrufen. Gibt Befehlsnamen zurück wenn ausgelöst, sonst None."""
+        """Pro Frame aufrufen. Gibt Befehlsnamen zurück wenn ausgelöst, sonst None.
+
+        Auslösung genau bei ``_streak == _stable`` (exakte Gleichheit, nicht ``>=``):
+        eine *gehaltene* Geste feuert damit **genau einmal**. Während des Cooldowns
+        wird der Streak nicht weitergezählt; danach läuft er an ``_stable`` vorbei und
+        trifft die Gleichheit nicht erneut. Zum Wiederholen muss die Geste gewechselt
+        und erneut gehalten werden — bewusst als Anti-Dauerfeuer (kontinuierliche
+        Bewegung liefert stattdessen der RC-Modus).
+        """
         if self._cooldown_left > 0:
             self._cooldown_left -= 1
             return None

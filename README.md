@@ -56,8 +56,8 @@ around, I had to test everything repeatedly against the mock and the simulation 
 safety.
 
 A `DroneController` hides the backend. The same gesture and voice code runs against a
-software mock, a PyBullet physics simulation, or the real Tello — switching is a single
-argument. Everything else follows from that one decision.
+software mock, a PyBullet physics simulation, or the real Tello. Switching is a single
+argument, and everything else follows from that one decision.
 
 Everything also runs locally. Speech-to-text (Whisper), the command-parsing LLM (Ollama)
 and gesture recognition (MediaPipe) execute on the laptop, so no internet connection is
@@ -130,11 +130,16 @@ tello-projekt/
 ├── examples/                 # runnable demos (cube flight, PS4 controller)
 ├── scripts/                  # download_model.py, webcam_check.py,
 │                             #   latency_benchmark.py, graphify_benchmark.py
-├── tests/                    # hardware-free pytest suite (97 tests)
+├── tests/                    # hardware-free pytest suite (151 tests)
 ├── docs/                     # PROJECT.pdf, DECISIONS.md, COMMANDS.md, AI_WORKFLOW.md
 ├── .claude/skills/           # the slash-commands used to build this (see below)
 └── AIDER.md + .aider.conf.yml  # task gate for the local coding model
 ```
+
+> **A note for reviewers:** identifiers, public docstrings and this README are in
+> English; in-code comments are in German (the author's working language). The
+> comments carry the "why" — platform landmines, control-model decisions — so a
+> German read of `core/` and `sim/` is where the reasoning lives.
 
 ## Tests
 
@@ -143,10 +148,10 @@ pip install -e ".[dev]"
 pytest
 ```
 
-97 tests, ~1.8 s, no hardware: they cover the command-validation safety layer, the
-gesture debounce/mapping and velocity-blending logic, the voice fastpath and energy
-segmenter, and the MockTello pose/bounds model. No webcam, microphone, drone or
-PyBullet is needed, so the whole suite runs in CI.
+151 tests in about a second, no hardware. They cover the command-validation safety
+layer, the gesture debounce/mapping and velocity-blending logic, the voice fastpath and
+energy segmenter, and the MockTello pose/bounds model. Nothing needs a webcam,
+microphone, drone or PyBullet, so the whole suite runs in CI.
 
 ## How this was built
 
@@ -173,10 +178,11 @@ Claude Code (VS Code)
 model is allowed to attempt; anything multi-file or async is explicitly held for Claude.
 
 **graphify** ([`graphifyy`](https://pypi.org/project/graphifyy/)) indexes the repo into a
-graph — 537 nodes, 807 edges, 38 communities — with an EXTRACTED/INFERRED audit trail.
-`MockTello` and `DroneController` fall out as the central hubs, which is the intended
-shape. The graph is a regenerable artifact (`graphify-out/`, git-ignored): `graphify
-update` is AST-only, though the initial build runs a semantic LLM pass and does cost tokens.
+graph of 776 nodes, 1114 edges and 63 communities, each tagged EXTRACTED or INFERRED so
+you can tell a measured fact from a guess. `MockTello` and `DroneController` come out as
+the central hubs, which is the shape I expected. The graph is a regenerable artifact
+(`graphify-out/`, git-ignored). `graphify update` is AST-only; the first build runs a
+semantic LLM pass and does cost tokens.
 
 **What the graph is worth, measured.** [`scripts/graphify_benchmark.py`](scripts/graphify_benchmark.py)
 runs five pre-registered orientation questions and compares graphify's output against
@@ -189,12 +195,12 @@ reading the files that answer them:
 | Questions merely *located* | 4 of 5 |
 | Questions answered wrongly | 1 of 5 |
 
-The honest reading: graphify is an **index, not an oracle**. It cuts the cost of finding
-the right file, and it never contains the code, so implementation detail still means
-opening the file. The cheapest query in the benchmark (147× "saving") is the one that
-matched the wrong nodes entirely — which is exactly why token count alone is a bad
-metric, and why the sufficiency column exists. `graphify query` at its default
-`--budget 2000` is *not* cheaper than simply reading a small module.
+So graphify is an index, not an oracle. It cuts the cost of finding the right file, but
+it never holds the code itself, so implementation detail still means opening the file.
+The cheapest query in the benchmark (147× "saving") matched the wrong nodes entirely.
+That is exactly why token count alone is a bad metric, and why the sufficiency column is
+there. At its default `--budget 2000`, `graphify query` is not actually cheaper than just
+reading a small module.
 
 Note that cloning this repo inherits the `PreToolUse` hooks in `.claude/settings.json`,
 which nudge an agent to run `graphify query` before grepping. Delete them if unwanted.
