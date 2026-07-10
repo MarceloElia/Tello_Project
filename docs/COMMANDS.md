@@ -111,16 +111,19 @@ not automatically a good one.
 Raw `.mov` / `.mp4` are git-ignored: they exceed GitHub's limits (100 MB hard cap per
 file). Two artefacts per video, both cut from the same source.
 
-**1 — 5 s highlight GIF** (committed to `docs/images/`, autoplays and loops in the
-README, no click). Replace `-ss` with the start of the moment you want:
+**1 — highlight GIF** (committed to `docs/images/`, autoplays and loops in the README,
+no click needed). `-ss` is the start, `-t` the length:
 
 ```bash
-ffmpeg -ss 00:00:12 -t 5 -i Drohne_Gesten_test.mov \
-  -vf "fps=12,scale=480:-1:flags=lanczos,palettegen" -y /tmp/pal.png
-ffmpeg -ss 00:00:12 -t 5 -i Drohne_Gesten_test.mov -i /tmp/pal.png \
-  -lavfi "fps=12,scale=480:-1:flags=lanczos[x];[x][1:v]paletteuse" \
-  -y docs/images/gesture_highlight.gif
+ffmpeg -ss 11 -t 10 -i demo-clips/gesture_control.mp4 \
+  -vf "fps=10,scale=440:-1:flags=lanczos,palettegen=stats_mode=diff" -y /tmp/pal.png
+ffmpeg -ss 11 -t 10 -i demo-clips/gesture_control.mp4 -i /tmp/pal.png \
+  -lavfi "fps=10,scale=440:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=3" \
+  -loop 0 -y docs/images/gesture_highlight.gif
 ```
+
+10 fps at 440 px lands around 2 MB for 10 s. 12 fps at 480 px costs ~30 % more for no
+visible gain — these autoplay on every page load, so keep them lean.
 
 **2 — full clip** (plays inline *with audio*). Settings chosen by measurement, not by
 feel: encoded at several qualities and scored with `libvmaf` against the source.
@@ -151,7 +154,15 @@ to save bits. Reproduce a score with:
 ffmpeg -i out.mp4 -i src.mov -lavfi "[0:v]scale=1920:1080[d];[1:v]scale=1920:1080[r];[d][r]libvmaf" -f null -
 ```
 
-Then drag `full_gesture.mp4` into any GitHub issue comment **without submitting the
-issue**, copy the resulting `https://github.com/user-attachments/assets/…` URL, and put
-it in the README under the GIF. GitHub only renders an inline player for files it hosts
-itself — a committed video will never play.
+Then drag the `.mp4` into a GitHub issue comment and **submit the issue** — an attachment
+that is only uploaded but never posted stays private, and its
+`https://github.com/user-attachments/assets/…` URL returns 404 for logged-out visitors.
+Once the issue exists the URL is public and stable; the issue can then be closed. Verify
+before embedding:
+
+```bash
+curl -sL -o /dev/null -w '%{http_code} %{content_type}\n' <asset-url>   # want: 200 video/mp4
+```
+
+Paste the bare URL on its own line in the README. GitHub only renders an inline player
+for files it hosts itself — a committed video will never play.

@@ -16,16 +16,26 @@ hardware**.
 
 ## Demo
 
-<!--
-  FILL-IN PROCEDURE (see docs/COMMANDS.md § Demo assets):
-    1. Cut a 5 s highlight GIF into docs/images/  (ffmpeg recipe in COMMANDS.md)
-    2. Compress the full clip to 720p mp4, drag it into any GitHub issue comment
-       WITHOUT submitting, and copy the resulting user-attachments URL.
-    3. Replace each placeholder below.
-  Raw .mov/.mp4 are git-ignored on purpose — they exceed GitHub's file limits.
--->
+All three clips are real flights with the physical Tello, not the simulator.
 
-_Demo clips are being cut — gesture control, voice control, and a real flight._
+**Gesture control** — a held hand pose maps to a discrete 30 cm move.
+
+![Gesture control](docs/images/gesture_highlight.gif)
+
+▶ [Full clip (46 s, with sound)](https://github.com/user-attachments/assets/d190e388-8feb-4e01-887d-ef08f4270340)
+
+**Continuous velocity mode (`--rc`)** — the same gestures, but held poses become a
+velocity setpoint via `send_rc_control` instead of discrete hops. No ACK round-trip per
+command, so the drone moves the moment the gesture is recognised.
+
+![RC velocity control](docs/images/rc_highlight.gif)
+
+▶ [Full clip (47 s, with sound)](https://github.com/user-attachments/assets/5afec26c-a6a6-484a-98b8-738a247a553b)
+
+**Voice control** — wake word "Drohne", then German speech → Whisper → Ollama →
+validated JSON. Worth watching with sound on; everything runs locally on the laptop.
+
+https://github.com/user-attachments/assets/0d656712-5195-4bd6-93da-4e94c118456d
 
 ---
 
