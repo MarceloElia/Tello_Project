@@ -48,6 +48,52 @@ EXTENDED_ANGLE  = 150   # Finger gilt ab diesem Gelenkwinkel als gestreckt (Grad
 THUMB_MARGIN    = 0.35  # Daumen-Schwelle als Anteil der Handgröße
 DEADZONE_DEG    = 30    # ±Winkel um die Senkrechte = "vorwärts"
 SIDE_MAX_DEG    = 110   # darüber hinaus zählt die Geste nicht mehr als Zeigen
+DETECT_MAX_WIDTH = 480  # Breite, auf die vor MediaPipe-Inferenz skaliert wird (Latenz)
+
+
+@dataclass(frozen=True)
+class CaptureConfig:
+    """Gewünschte Webcam-Einstellungen (Latenz-Optimierung).
+
+    640x480 reicht, weil MediaPipe ohnehin auf DETECT_MAX_WIDTH herunterskaliert.
+    MJPG spart Bandbreite ggü. rohem YUV; buffersize=1 verwirft den Frame-Rückstau,
+    sodass read() immer den frischesten Frame liefert.
+
+    Achtung: cv2.VideoCapture-Properties sind *Wünsche*, keine Garantien. Auf macOS
+    (AVFoundation) werden buffersize/fourcc oft still ignoriert – deshalb liest
+    _apply_capture_config die tatsächlichen Werte zurück, statt sie anzunehmen.
+    """
+    width: int | None = 640
+    height: int | None = 480
+    fps: int | None = 30
+    fourcc: str | None = "MJPG"
+    buffersize: int | None = 1
+
+
+def _apply_capture_config(cap, cfg: CaptureConfig) -> dict:
+    """Wendet cfg auf ein VideoCapture an und gibt die *effektiven* Werte zurück.
+
+    Reihenfolge zählt: FOURCC zuerst (viele Backends fixieren danach die erlaubten
+    Auflösungen/FPS), dann Auflösung, FPS, Puffergröße. Jede Property wird nach dem
+    Setzen per cap.get() zurückgelesen – so ist sichtbar, was das Backend akzeptiert.
+    """
+    if cfg.fourcc is not None:
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*cfg.fourcc))
+    if cfg.width is not None:
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, cfg.width)
+    if cfg.height is not None:
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, cfg.height)
+    if cfg.fps is not None:
+        cap.set(cv2.CAP_PROP_FPS, cfg.fps)
+    if cfg.buffersize is not None:
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, cfg.buffersize)
+
+    return {
+        "width":      int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
+        "height":     int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+        "fps":        round(cap.get(cv2.CAP_PROP_FPS)),
+        "buffersize": int(cap.get(cv2.CAP_PROP_BUFFERSIZE)),
+    }
 
 
 class Gesture(Enum):
@@ -181,7 +227,8 @@ class GestureDetector:
 
     def __init__(self, camera_index=0,
                  min_detection_confidence=0.7,
-                 min_tracking_confidence=0.5):
+                 min_tracking_confidence=0.5,
+                 capture: CaptureConfig | None = CaptureConfig()):
         if not os.path.exists(_MODEL_PATH):
             raise FileNotFoundError(
                 f"Modelldatei nicht gefunden: {_MODEL_PATH}\n"
@@ -199,16 +246,32 @@ class GestureDetector:
         self._landmarker = _HandLandmarker.create_from_options(options)
 
         self._cap = None
+        self._capture_info = None
         if camera_index is not None:
             self._cap = cv2.VideoCapture(camera_index)
             if not self._cap.isOpened():
                 raise RuntimeError(f"Webcam {camera_index} nicht erreichbar.")
+            if capture is not None:
+                self._capture_info = _apply_capture_config(self._cap, capture)
+                info = self._capture_info
+                print(f"📷 Kamera: {info['width']}x{info['height']} "
+                      f"@{info['fps']}fps  (Puffer={info['buffersize']})")
 
     def detect_frame(self, frame_bgr) -> DetectionResult:
         """Verarbeitet einen einzelnen BGR-Frame."""
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        mp_image  = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
-        result    = self._landmarker.detect(mp_image)
+
+        # MediaPipe bekommt ein verkleinertes Bild (schnellere Inferenz auf CPU);
+        # Landmarks sind normiert (0-1) und bleiben so für classify()/annotate()
+        # unabhängig von der Auflösung gültig. Das angezeigte Bild (frame_rgb)
+        # bleibt in voller Auflösung.
+        h, w = frame_rgb.shape[:2]
+        detect_rgb = frame_rgb
+        if w > DETECT_MAX_WIDTH:
+            scale = DETECT_MAX_WIDTH / w
+            detect_rgb = cv2.resize(frame_rgb, (DETECT_MAX_WIDTH, int(round(h * scale))))
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=detect_rgb)
+        result   = self._landmarker.detect(mp_image)
 
         if result.hand_landmarks:
             lm      = result.hand_landmarks[0]

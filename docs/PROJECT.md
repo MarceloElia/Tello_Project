@@ -103,13 +103,14 @@ Pipeline: **webcam → MediaPipe → classifier → debounce → command (async)
   frame and classifies the hand. Classification is **angle-based, not
   position-based**: a finger counts as extended when the joint angle at its PIP
   joint (MCP→PIP→TIP) is large (~straight). This is robust to hand rotation, tilt
-  and size — the standard approach for rule-based finger counting. Thumb direction
+  and size, which a position-based check is not. Thumb direction
   is read from the thumb tip relative to the knuckle line; pointing direction uses
   the index finger's angle to the vertical with a ±30° dead zone for "forward".
 - **`command_map.py`** maps each `Gesture` to a controller call, with a **debounce**:
-  a gesture must be held for `STABLE_FRAMES` (8) consecutive frames before it fires,
-  and a cooldown then blocks repeats. This prevents jitter and accidental
-  double-triggers.
+  a gesture must be held for `STABLE_FRAMES` (5) consecutive frames before it fires,
+  and a `COOLDOWN_FRAMES` (10) pause then blocks repeats. This prevents jitter and
+  accidental double-triggers. Both were halved from their original values (8 / 20)
+  to cut the gesture-to-command latency.
 - **`runner.py`** runs flight commands on a **worker thread** (`AsyncCommandRunner`)
   so the blocking flight call doesn't freeze the webcam/preview loop. A
   `ThreadedCtrlAdapter` makes the async runner look like a normal controller, so the
@@ -121,6 +122,19 @@ Pipeline: **webcam → MediaPipe → classifier → debounce → command (async)
 
 **Gesture map:** fist → hover, thumb up/down → up/down, index up/left/right →
 forward/left/right, peace → back, open hand → land.
+
+**Continuous velocity mode (`--rc`, opt-in).** The default path sends discrete 30 cm
+`move_*` commands, each of which blocks until the drone acknowledges it — roughly
+200 ms of dead time per command. `velocity_map.py` offers the alternative: a *held*
+gesture is translated into an RC setpoint and pushed with `send_rc_control`, which is
+fire-and-forget. Motion begins the moment the gesture is recognised.
+
+`VelocityBlender` ramps the output toward the target by at most `MAX_STEP` per axis per
+frame. That smooths acceleration and braking, and it makes the frame debounce
+unnecessary as a side effect: a single misclassified frame nudges the setpoint by one
+step and is pulled straight back, so it never becomes visible motion. A dead zone
+suppresses jitter near zero. `--rc --sim` deliberately raises — driving a velocity
+setpoint through the PyBullet PID controller is a separate piece of work.
 
 ## 3.3 Voice control — `tello_control.voice`
 
@@ -140,6 +154,12 @@ Pipeline: **mic → VAD + wake word → Whisper → Ollama → JSON → validati
   has an autostart helper (`ensure_ollama`) that launches the Ollama server if needed
   and checks the model is pulled. The Ollama call is deliberately separated from
   parsing so the parse/validate logic is testable without a running server.
+- **`fastpath.py`** short-circuits the LLM for unambiguous single-clause commands
+  ("lande", "vor 50 cm", "dreh dich rechts"). Anchored regexes map the transcript
+  straight onto the command schema, saving the ~0.8 s Ollama round-trip. Anything with
+  conjunctions, or any value outside the SDK bounds, returns `None` and falls through to
+  `llm_parser.parse()`. Crucially the fastpath emits its result through the **same**
+  `validate_list()` as the LLM path — it is a latency shortcut, never a safety bypass.
 - **`commands.py`** is the **safety-critical validation layer**. The LLM returns a
   JSON command list; every command is checked against an allow-list of actions and
   the SDK bounds *before anything reaches the drone*. The contract is all-or-nothing:
@@ -220,6 +240,36 @@ Full command list: see [`COMMANDS.md`](COMMANDS.md).
 - **Validation as a safety gate.** The voice path treats the LLM as untrusted: its
   output is validated against an allow-list and SDK bounds, all-or-nothing, before
   any command reaches the drone.
+
+## 6.1 Explored and ruled out — lip-reading control
+
+A lip-driven control channel was prototyped and ultimately dropped. Two approaches
+were tested:
+
+1. **Lip-shape templates (MediaPipe FaceLandmarker + nearest-neighbour).** A 30-second
+   per-user calibration recorded one normalised 80-dim lip vector per command, matched
+   live with debounce/cooldown — the same architecture as the gesture pipeline. It runs
+   in real time and is fully local, but the mouth-shape vectors for distinct commands
+   were not separable enough on a single face: short words spend most frames near the
+   neutral (closed-mouth) shape, so matching was unreliable even with a neutral-frame
+   filter and multi-take calibration.
+
+2. **True lip-reading (Meta AV-HuBERT, visual speech recognition).** The full VSR
+   pipeline was reproduced locally: webcam → dlib 68-point landmarks → mean-face affine
+   alignment → 96×96 mouth ROI → centre-crop 88 → AV-HuBERT base (LRS3-433h) → beam
+   search. Preprocessing was confirmed correct (clean landmark detection and aligned ROI
+   sequences), and the model ran end-to-end. Accuracy, however, was unusable for control:
+   "take off" decoded to *"land earth"*, and "please turn off and fly up" to *"but lies a
+   lot of guidance overly helping"* — fluent, hallucinated LRS3-style English rather than
+   the spoken words. **Root cause:** AV-HuBERT is trained on natural connected British
+   speech; short isolated commands are its worst case, compounded by a non-native speaker
+   off the training distribution. The ~5 s clip-buffer + inference latency also rules it
+   out for reactive flight.
+
+**Conclusion.** Speaker-independent, low-latency lip reading is not achievable off-the-shelf
+today; making AV-HuBERT usable would require fine-tuning on a per-user command dataset — a
+separate ML project. The lip-shape prototype was removed from the codebase. Gesture and
+voice remain the two working control channels.
 
 # 7. Status & roadmap
 

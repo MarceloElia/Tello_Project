@@ -19,7 +19,11 @@ Steuerung im Flugmodus:
 """
 
 import argparse
+import logging
+import os
 import time
+
+os.environ.setdefault("SDL_VIDEO_WINDOW_POS", "30,60")  # Fenster oben links, aus dem Weg
 import pygame
 
 # Controller-Mapping (anpassen, falls dein Controller anders gemappt ist)
@@ -41,10 +45,18 @@ def _init_joystick():
     pygame.init()
     pygame.joystick.init()
     if pygame.joystick.get_count() == 0:
-        print("Kein Controller gefunden. PS4-Controller per USB/Bluetooth verbinden.")
+        print("Kein Controller gefunden.")
+        print("  -> PS-Button drücken (Controller schläft nach Inaktivität).")
+        print("  -> Lichtleiste an? Sonst per USB-Kabel anschließen (Akku leer).")
+        print("  -> Bluetooth prüfen: Systemeinstellungen → Bluetooth → verbunden?")
         raise SystemExit
     js = pygame.joystick.Joystick(0)
     print("Controller:", js.get_name())
+    # macOS: ohne offenes Fenster pumpt SDL den OS-Eventloop nicht weiter und die
+    # Controller-Eingabe friert nach ein paar Sekunden ein. Ein kleines Fenster
+    # (fokussiert lassen!) hält den Eventstrom am Leben.
+    pygame.display.set_mode((240, 120))
+    pygame.display.set_caption("Tello PS4 – Fenster fokussiert lassen")
     return js
 
 
@@ -55,10 +67,13 @@ def run_test():
     print("Bewege Sticks/Buttons. Ctrl-C zum Beenden.\n")
     try:
         while True:
-            pygame.event.pump()
+            pygame.event.get()   # Queue leeren, sonst friert die Eingabe ein (macOS/Bluetooth)
             axes = [round(js.get_axis(i), 2) for i in range(js.get_numaxes())]
-            buttons = [js.get_button(i) for i in range(js.get_numbuttons())]
-            print("Axes:", axes, "Buttons:", buttons, end="\r")
+            pressed = [i for i in range(js.get_numbuttons()) if js.get_button(i)]
+            # Gedrückte Buttons in eigener Zeile, damit der Index sichtbar bleibt:
+            if pressed:
+                print(f"\nBUTTON gedrückt: {pressed}")
+            print("Axes:", axes, "  gedrückte Buttons:", pressed, end="\r")
             time.sleep(0.1)
     except KeyboardInterrupt:
         print("\nBeendet.")
@@ -82,6 +97,9 @@ def run_fly():
     """Fliegt die echte Tello per Controller (send_rc_control)."""
     from djitellopy import Tello   # erst laden, wenn wirklich geflogen wird
 
+    # djitellopy spammt sonst pro rc-Befehl eine INFO-Zeile -> Terminal unbrauchbar.
+    Tello.LOGGER.setLevel(logging.WARNING)
+
     js = _init_joystick()
     tello = Tello()
     print("Verbinde mit Tello ...")
@@ -94,7 +112,7 @@ def run_fly():
 
     try:
         while True:
-            pygame.event.pump()
+            pygame.event.get()   # Queue leeren, sonst friert die Eingabe ein (macOS/Bluetooth)
 
             if _pressed_once(js, BTN_TAKEOFF, old_buttons) and not flying:
                 print("\nTakeoff"); tello.takeoff(); flying = True
@@ -115,8 +133,14 @@ def run_fly():
             yaw = _scale_axis(js.get_axis(AXIS_RIGHT_X))
             if flying:
                 tello.send_rc_control(lr, fb, ud, yaw)
+            else:
+                # Keepalive: hält die Tello im Command-Modus, sonst fällt sie
+                # nach ~15 s ohne Befehl raus und reagiert dann nicht mehr.
+                tello.send_rc_control(0, 0, 0, 0)
 
             time.sleep(0.05)
+    except KeyboardInterrupt:
+        print("\nAbbruch (Ctrl-C).")
     finally:
         print("\nStoppe Steuerung.")
         try:

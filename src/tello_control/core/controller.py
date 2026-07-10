@@ -80,6 +80,14 @@ class DroneController:
     def rotate_cw(self, deg):  self.drone.rotate_clockwise(deg)
     def rotate_ccw(self, deg): self.drone.rotate_counter_clockwise(deg)
 
+    def send_rc_control(self, lr, fb, ud, yaw):
+        """Nicht-blockierende Geschwindigkeitssteuerung (RC). Gehaltener Sollwert.
+
+        Anders als move_*(): kein Ack-Roundtrip, Bewegung startet sofort. Muss pro
+        Frame neu gesendet werden; (0,0,0,0) = Hover/Stop. Nur mock + real.
+        """
+        self.drone.send_rc_control(lr, fb, ud, yaw)
+
     def disconnect(self):
         self.drone.end()
 

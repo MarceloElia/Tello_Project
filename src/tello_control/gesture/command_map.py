@@ -22,8 +22,8 @@ from typing import Callable
 
 from tello_control.gesture.detector import Gesture
 
-STABLE_FRAMES   = 8    # Frames die die Geste stabil gehalten werden muss
-COOLDOWN_FRAMES = 20   # Frames Pause nach Auslösung
+STABLE_FRAMES   = 5    # Frames die die Geste stabil gehalten werden muss
+COOLDOWN_FRAMES = 10   # Frames Pause nach Auslösung
 
 # Map: Gesture → (command name, controller call).  Extend here to add new gestures.
 _GESTURE_COMMANDS: dict[Gesture, tuple[str, Callable]] = {

@@ -33,6 +33,24 @@ def _rms(frame: np.ndarray) -> float:
     return float(np.sqrt(np.mean(np.square(frame, dtype=np.float64))))
 
 
+def calibrate_threshold(get_frame, samplerate: int,
+                        calibrate_s: float = 1.0, energy_factor: float = 3.0) -> float:
+    """
+    Misst den Grundpegel über 'calibrate_s' Sekunden (per get_frame() geholte Frames)
+    und leitet daraus die Sprach-Schwelle ab. Von ContinuousListener und dem
+    VAD-basierten ENTER-Modus (stt.record_until_silence) gemeinsam genutzt.
+    """
+    print(f"Kalibriere Umgebungsgeräusch ({calibrate_s:.0f}s, bitte still sein) ...",
+          flush=True)
+    n_frames = int(calibrate_s * samplerate / FRAME_LEN)
+    levels = [_rms(get_frame()) for _ in range(max(1, n_frames))]
+    noise_floor = float(np.median(levels)) if levels else 0.0
+    threshold = max(noise_floor * energy_factor, MIN_THRESHOLD)
+    print(f"Grundpegel: {noise_floor:.4f}  →  Sprach-Schwelle: {threshold:.4f}",
+          flush=True)
+    return threshold
+
+
 def strip_wake_word(text: str, wake: str = "drohne") -> str | None:
     """
     Gibt den Befehlstext ohne führendes Wake-Word zurück, oder None wenn das
@@ -63,7 +81,7 @@ class EnergySegmenter:
     """
 
     def __init__(self, threshold: float, frame_ms: int = FRAME_MS,
-                 silence_ms: int = 800, start_ms: int = 200,
+                 silence_ms: int = 500, start_ms: int = 200,
                  preroll_ms: int = 150):
         self.threshold = threshold
         self._silence_frames = max(1, silence_ms // frame_ms)
@@ -116,6 +134,12 @@ class EnergySegmenter:
         self._silence_count = 0
         self._start_count = 0
 
+    def pending(self) -> np.ndarray:
+        """Bisher aufgenommenes (noch nicht per Stille abgeschlossenes) Audio."""
+        if not self._buffer:
+            return np.zeros(0, dtype="float32")
+        return np.concatenate(self._buffer)
+
 
 class ContinuousListener:
     """
@@ -129,7 +153,7 @@ class ContinuousListener:
     """
 
     def __init__(self, transcriber, samplerate: int = SAMPLERATE,
-                 silence_ms: int = 800, start_ms: int = 200,
+                 silence_ms: int = 500, start_ms: int = 200,
                  calibrate_s: float = 1.0, energy_factor: float = 3.0):
         self._transcriber = transcriber
         self._samplerate = samplerate
@@ -154,18 +178,10 @@ class ContinuousListener:
 
     def _calibrate(self) -> float:
         """Misst den Grundpegel und leitet die Sprach-Schwelle ab."""
-        print(f"Kalibriere Umgebungsgeräusch ({self._calibrate_s:.0f}s, bitte still sein) ...",
-              flush=True)
-        n_frames = int(self._calibrate_s * self._samplerate / FRAME_LEN)
-        levels = []
-        for _ in range(max(1, n_frames)):
-            frame = self._q.get()
-            levels.append(_rms(frame))
-        noise_floor = float(np.median(levels)) if levels else 0.0
-        threshold = max(noise_floor * self._energy_factor, MIN_THRESHOLD)
-        print(f"Grundpegel: {noise_floor:.4f}  →  Sprach-Schwelle: {threshold:.4f}",
-              flush=True)
-        return threshold
+        return calibrate_threshold(
+            lambda: self._q.get(), self._samplerate,
+            calibrate_s=self._calibrate_s, energy_factor=self._energy_factor,
+        )
 
     def utterances(self):
         """Generator: liefert pro erkanntem Sprach-Segment den transkribierten Text."""
@@ -175,14 +191,29 @@ class ContinuousListener:
         self._segmenter = EnergySegmenter(
             threshold=threshold, silence_ms=self._silence_ms, start_ms=self._start_ms,
         )
+        use_async = hasattr(self._transcriber, "submit") and hasattr(self._transcriber, "poll")
         print("🟢 Höre zu ...\n", flush=True)
 
         while True:
-            frame = self._q.get()
+            if use_async:
+                text = self._transcriber.poll()
+                if text is not None:
+                    yield text
+
+            try:
+                frame = self._q.get(timeout=0.02)   # 20 ms max so poll() runs frequently
+            except queue.Empty:
+                continue
+
             segment = self._segmenter.feed(frame)
-            if segment is not None:
-                text = self._transcriber.transcribe(segment)
-                yield text
+            if segment is None:
+                continue
+
+            if use_async:
+                if not self._transcriber.submit(segment):
+                    print("Whisper läuft noch – Segment verworfen", flush=True)
+            else:
+                yield self._transcriber.transcribe(segment)
 
     def close(self):
         if self._stream is not None:

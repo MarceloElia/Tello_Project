@@ -80,6 +80,22 @@ def demo_functions(c, pause):
         _announce(name, desc, pause)
         fn()
 
+    # send_rc_control: kontinuierliche Geschwindigkeit (nicht-blockierend).
+    # Nur mock + real – Sim-RC (PID-Geschwindigkeitssollwert) ist Folgeaufgabe,
+    # konsistent mit der Gestensteuerung (--rc --sim wirft dort einen Fehler).
+    if c.backend == "sim":
+        _announce("send_rc_control(...)",
+                  "übersprungen – RC im Sim noch nicht unterstützt", pause)
+    else:
+        _announce("send_rc_control(0,30,0,0)",
+                  "1,5 s Vorwärts-Puls (feuern-und-vergessen), dann Stop", pause)
+        c.send_rc_control(0, 30, 0, 0)      # Vorwärts-Geschwindigkeit
+        for _ in range(15):                 # Puls halten: Pose treiben (mock)/fliegen (real)
+            c.tick()                        # No-Op für real; integriert die Pose im mock
+            time.sleep(0.1)
+        c.send_rc_control(0, 0, 0, 0)       # Stop / Hover
+        print(f"  Höhe nach Puls: {c.height()} cm")
+
     _announce("land()", "Drohne landet", pause)
     c.land()
 

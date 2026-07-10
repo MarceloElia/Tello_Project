@@ -7,7 +7,7 @@ OpenCV und PyAV nicht im selben Prozess ins Gehege kommen).
 
 Voraussetzung: conda-Env 'tello-sim' aktiv, Paket installiert (pip install -e . --no-deps).
     conda activate tello-sim
-    cd ~/tello-projekt
+    cd ~/Projects/tello-projekt
     python -m tello_control.sim.launcher
 
 Menü:

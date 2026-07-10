@@ -12,7 +12,9 @@ Dauerhör-Modus (Wake-Word "Drohne"):
     python -m tello_control.voice.app --real --continuous
 
 Ablauf ENTER-Modus:
-    ENTER  → aufnehmen → transkribieren → LLM parst → validieren → Plan zeigen → ausführen
+    ENTER  → aufnehmen (endet automatisch nach Sprechpause) → transkribieren
+           → Fastpath (einfache Befehle) oder LLM parst → validieren → Plan zeigen
+           → automatisch ausführen (kein zweites ENTER nötig)
     q+ENTER→ beenden (landet vorher, falls in der Luft)
 
 Ablauf Dauerhör-Modus:
@@ -20,16 +22,17 @@ Ablauf Dauerhör-Modus:
     Ctrl-C → beenden (landet vorher, falls in der Luft)
 
 Sicherheit: Die komplette Befehlsliste wird validiert, BEVOR etwas ausgeführt wird.
-Im ENTER-Modus wird der Plan bei echter Drohne zusätzlich bestätigt; im Dauerhör-
-Modus ist das Wake-Word das Sicherheits-Gate (Auto-Ausführen nach "Drohne").
+Im ENTER-Modus ist das einmalige ENTER + das Aufnahmefenster das Sicherheits-Gate;
+im Dauerhör-Modus ist es das Wake-Word (Auto-Ausführen nach "Drohne").
 """
 
 import sys
 import argparse
 
 from tello_control.core.controller import DroneController
-from tello_control.voice.stt import Transcriber
+from tello_control.voice.stt import Transcriber, ProcessTranscriber
 from tello_control.voice import llm_parser
+from tello_control.voice.fastpath import try_fastpath
 from tello_control.voice.commands import Command, ValidationError
 
 
@@ -59,11 +62,15 @@ def _handle_text(ctrl, text, model, real_mode, confirm):
         print("  (nichts verstanden)\n")
         return
 
-    try:
-        commands = llm_parser.parse(text, model=model)
-    except (llm_parser.LLMError, ValidationError) as e:
-        print(f"  ❌  {e}\n")
-        return
+    commands = try_fastpath(text)
+    if commands is not None:
+        print("  [fastpath] Ollama übersprungen.")
+    else:
+        try:
+            commands = llm_parser.parse(text, model=model)
+        except (llm_parser.LLMError, ValidationError) as e:
+            print(f"  ❌  {e}\n")
+            return
 
     print("  Plan:")
     for c in commands:
@@ -80,14 +87,19 @@ def _handle_text(ctrl, text, model, real_mode, confirm):
 
 
 def run_enter_mode(ctrl, transcriber, args, real_mode):
-    print("\nENTER = sprechen,  q + ENTER = beenden.\n")
+    from tello_control.voice.stt import record_until_silence
+
+    print(f"\nENTER = aufnehmen (endet automatisch nach Sprechpause, max. {args.seconds:.0f}s),"
+          " dann führt die Drohne automatisch aus.  q + ENTER = beenden.\n")
     while True:
         user = input("[ENTER zum Aufnehmen] ").strip().lower()
         if user == "q":
             break
-        text = transcriber.listen(args.seconds)
-        _handle_text(ctrl, text, args.model, real_mode,
-                     confirm=real_mode and not args.no_confirm)
+        audio = record_until_silence(max_seconds=args.seconds)
+        text = transcriber.transcribe(audio)
+        # Sprechpause ist das Gate: sobald erkannt, sofort ausführen,
+        # kein zweites ENTER zum Bestätigen.
+        _handle_text(ctrl, text, args.model, real_mode, confirm=False)
 
 
 def run_continuous_mode(ctrl, transcriber, args, real_mode):
@@ -118,12 +130,11 @@ def main():
     parser.add_argument("--real", action="store_true", help="Echte Drohne statt Mock")
     parser.add_argument("--sim", action="store_true", help="Physik-Sim (PyBullet) statt Mock")
     parser.add_argument("--model", default=llm_parser.DEFAULT_MODEL, help="Ollama-Modell")
-    parser.add_argument("--seconds", type=float, default=6.0, help="Aufnahmedauer (ENTER-Modus)")
+    parser.add_argument("--seconds", type=float, default=15.0,
+                        help="Max. Aufnahmedauer (ENTER-Modus, endet sonst automatisch nach Sprechpause)")
     parser.add_argument("--whisper", default="small", help="Whisper-Modellgröße")
     parser.add_argument("--continuous", action="store_true", help="Dauerhören mit Wake-Word")
     parser.add_argument("--wake-word", default="drohne", help="Wake-Word für Dauerhören")
-    parser.add_argument("--no-confirm", action="store_true",
-                        help="Keine Bestätigung vor Ausführung (ENTER-Modus, auch bei --real)")
     args = parser.parse_args()
 
     backend = "real" if args.real else ("sim" if args.sim else "mock")
@@ -142,7 +153,8 @@ def main():
     ctrl = DroneController(backend=backend, verbose=True, backend_kwargs=kw)
     ctrl.connect()
 
-    transcriber = Transcriber(model_size=args.whisper)
+    transcriber = (ProcessTranscriber(model_size=args.whisper)
+                   if args.continuous else Transcriber(model_size=args.whisper))
 
     try:
         if args.continuous:

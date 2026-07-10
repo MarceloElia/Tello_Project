@@ -1,0 +1,12 @@
+# Aider config for this repo. Without it, Aider never reads AIDER.md.
+#
+# Requires Ollama with the model pulled once:
+#   ollama pull qwen2.5-coder:3b
+#
+# .aider.memory.md is written by the /aider-compact skill and is git-ignored;
+# Aider tolerates it being absent.
+model: ollama/qwen2.5-coder:3b
+map-tokens: 1024
+read:
+  - AIDER.md
+  - .aider.memory.md

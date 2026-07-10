@@ -63,3 +63,26 @@ commands succeed, third fails validation) leaves the drone in an unknown positio
 All-or-nothing means the user either gets the full intended manoeuvre or nothing moves.  
 **Ruled out:** Execute-and-stop-on-error (leaves drone mid-manoeuvre), per-command
 in-flight validation (same problem — partial execution is dangerous).
+
+---
+
+## ADR-6 · Gesture latency: continuous RC setpoints alongside discrete moves
+
+**Chosen:** Keep discrete `move_*` as the default, add continuous `send_rc_control`
+behind an opt-in `--rc` flag
+**Why:** Every discrete `move_forward(30)` blocks until the Tello acknowledges it. At a
+realistic 200 ms round-trip that caps the system at roughly 5 commands/second and makes
+the drone feel like it is stepping rather than flying. `send_rc_control` is
+fire-and-forget: a held gesture becomes a velocity setpoint and motion starts on
+recognition. Ramping the setpoint (`VelocityBlender`, max step per axis per frame) buys
+smoothing and single-frame misclassification filtering in one mechanism, so the RC path
+needs no debounce at all. Discrete stays the default because it is what has actually
+been flown on hardware, and because its behaviour is exactly reproducible in the mock.
+**Ruled out:** Replacing discrete moves outright (they are the only mode validated on
+the real drone, and they map cleanly onto the mock's analytic pose model); shortening the
+debounce further (it was already cut 8→5 frames — the remaining latency is the ACK
+round-trip, not the debounce); RC in the simulation (`--rc --sim` raises deliberately —
+feeding a velocity setpoint through `DSLPIDControl` is a separate task, not a flag).
+
+> The command-level model is in `scripts/latency_benchmark.py`. Real numbers await a
+> `--real --rc` flight; the figures there are a model, not a measurement.

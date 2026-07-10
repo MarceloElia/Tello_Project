@@ -19,7 +19,15 @@ Koordinaten (Vogelperspektive):
 import math
 import time
 
-from tello_control.core.constants import DIST_MIN, DIST_MAX, ANGLE_MIN, ANGLE_MAX
+from tello_control.core.constants import (
+    DIST_MIN, DIST_MAX, ANGLE_MIN, ANGLE_MAX, RC_MIN, RC_MAX,
+)
+
+# Nominale Umrechnung RC-Wert (−100..100) → Bewegung pro Sekunde, damit der Mock
+# bei gehaltener Geschwindigkeit eine plausible Pose integriert (nur Logik, keine
+# Physik). Die echte Drohne integriert selbst; der Sim macht es über PID.
+_RC_CM_PER_S  = 1.0     # 1 cm/s pro RC-Einheit  → RC 40 ≈ 40 cm/s
+_RC_DEG_PER_S = 1.0     # 1 °/s  pro RC-Einheit  → yaw 40 ≈ 40 °/s
 
 
 class TelloException(Exception):
@@ -40,6 +48,8 @@ class MockTello:
         self.yaw = 0.0                   # Grad
         self.log = []                    # Liste protokollierter Befehle
         self._t0 = None
+        self._rc = (0, 0, 0, 0)          # gehaltener RC-Sollwert (lr, fb, ud, yaw)
+        self._rc_t = None                # monotone Zeit des letzten tick() (RC)
 
     # ---------- interne Helfer ----------
     def _elapsed(self):
@@ -169,6 +179,38 @@ class MockTello:
         self.yaw = (self.yaw - deg) % 360; self._drain()
         self._say(f"↺  rotate ccw {deg}°  →  yaw {self.yaw:.0f}°")
         self._record(f"ccw {deg}")
+
+    # ---------- RC-/Geschwindigkeitssteuerung ----------
+    def send_rc_control(self, lr, fb, ud, yaw):
+        """Gehaltener Geschwindigkeits-Sollwert (wie djitellopy). Nicht blockierend.
+
+        Werte werden auf den SDK-Bereich geklemmt und gespeichert; die Pose wird
+        erst in tick() über die verstrichene Zeit integriert. Kein Akku-Abzug pro
+        Aufruf – es ist ein gehaltener Zustand, kein diskretes Manöver.
+        """
+        self._check_flying("send_rc_control")
+        clamp = lambda v: max(RC_MIN, min(RC_MAX, int(v)))
+        self._rc = (clamp(lr), clamp(fb), clamp(ud), clamp(yaw))
+
+    def tick(self, dt=None):
+        """Integriert den gehaltenen RC-Sollwert in die Pose.
+
+        dt = Sekunden seit dem letzten tick(); ohne Angabe aus der monotonen Uhr.
+        Tests übergeben ein festes dt für Determinismus. No-Op solange am Boden.
+        """
+        now = time.monotonic()
+        if dt is None:
+            dt = 0.0 if self._rc_t is None else (now - self._rc_t)
+        self._rc_t = now
+        if not self.flying or dt <= 0:
+            return
+        lr, fb, ud, yaw = self._rc
+        self._translate(
+            forward=fb * _RC_CM_PER_S * dt,
+            right=lr * _RC_CM_PER_S * dt,
+            up=ud * _RC_CM_PER_S * dt,
+        )
+        self.yaw = (self.yaw + yaw * _RC_DEG_PER_S * dt) % 360
 
     def end(self):
         self._say("🔌 Verbindung beendet.")

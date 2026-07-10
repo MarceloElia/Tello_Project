@@ -33,3 +33,15 @@ src/tello_control/gesture/models/*.task
 
 # graphify knowledge-graph output (regenerable, contains machine-specific paths)
 graphify-out/
+
+# --- Aider session state (private). AIDER.md and .aider.conf.yml are published. ---
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v4/
+.aider.memory.md
+
+# --- Demo videos: hosted as GitHub attachments, never committed ---
+# Raw captures exceed GitHub's 100 MB per-file limit; only the small
+# highlight GIFs in docs/images/ live in git.
+*.mov
+*.mp4

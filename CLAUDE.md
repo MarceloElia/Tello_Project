@@ -94,7 +94,7 @@ Aufrufe als Modul (`python -m tello_control.gesture.app`) oder via console-scrip
 ## Quick orientation for Claude
 
 - **Einstieg:** `src/tello_control/core/controller.py` + `core/mock_tello.py`
-- **Tests validieren schnell:** `pytest tests/ -q` (hardware-frei, ~2 s, 49 Tests)
+- **Tests validieren schnell:** `pytest tests/ -q` (hardware-frei, ~2 s, 97 Tests)
 - **Gesture und Voice sind unabhängig** — eines kann ohne das andere verstanden/geändert werden.
 - **Mock ≈ 80 % der Logik** — Sim/Real nur für physik-spezifische Fragen nötig.
 - **SDK-Grenzen:** einzelne Quelle in `src/tello_control/core/constants.py`.
@@ -116,3 +116,15 @@ Aufrufe als Modul (`python -m tello_control.gesture.app`) oder via console-scrip
 - Stand-Updates gehören in `docs/PROJEKTSTAND.md`, Aufruf-Befehle in `docs/COMMANDS.md` –
   CLAUDE.md schlank halten (Identität, Überblick, Architektur, Struktur, Konventionen).
 - PDF neu bauen nach Doku-Änderungen: `bash docs/build_pdf.sh`.
+
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+  Nur `update` ist AST-only — der erste Build (`graphify extract`) fährt einen semantischen
+  LLM-Pass und kostet Tokens.

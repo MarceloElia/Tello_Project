@@ -11,8 +11,8 @@
 #
 # Then install gym-pybullet-drones WITHOUT its deps (so it can't pull a second
 # PyBullet build or drag in SB3 + torch), and register this package:
-#     git clone https://github.com/utiasDSL/gym-pybullet-drones ~/gym-pybullet-drones-src
-#     pip install --no-deps -e ~/gym-pybullet-drones-src
+#     git clone https://github.com/utiasDSL/gym-pybullet-drones ~/Projects/gym-pybullet-drones-src
+#     pip install --no-deps -e ~/Projects/gym-pybullet-drones-src
 #     pip install --no-deps -e .          # this repo (tello_control importable)
 #
 # mediapipe + faster-whisper are included so gesture/voice can run against the
