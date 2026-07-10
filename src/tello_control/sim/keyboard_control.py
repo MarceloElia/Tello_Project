@@ -30,6 +30,7 @@ from tello_control.sim.keyboard_map import (
 from tello_control.sim.tuning_panel import TuningPanel, pid_arrays
 
 LOOP_HZ = 60
+PANEL_EVERY = 6      # Slider/Buttons nur alle 6 Frames abfragen -> ~10 Hz
 
 
 def _pressed_keys(client_id: int) -> tuple[set[str], set[str], bool]:
@@ -79,6 +80,8 @@ def main() -> int:
     flying = False
     follow = not args.no_follow
     back_to_menu = False
+    frame = 0
+    v = panel.read()          # Startwerte = Defaults
 
     try:
         while True:
@@ -89,24 +92,32 @@ def main() -> int:
                 break
 
             # --- Regler-Panel: Slider lesen, Buttons prüfen ------------------
-            if panel.clicked("menu"):
-                back_to_menu = True
-                break
-            if panel.clicked("defaults"):
-                panel.reset_to_defaults()      # legt Slider+Buttons neu an
-                drone.reset_pid_state()
-                print("Defaults wiederhergestellt")
-            if panel.clicked("reset_pid"):
-                drone.reset_pid_state()
-                print("PID-Zustand zurückgesetzt")
+            # Nur alle PANEL_EVERY Frames: ein Slider-Durchlauf sind 13 Round-Trips zur
+            # PyBullet-GUI, und ein Mensch dreht keinen Regler mit 60 Hz. Die Werte
+            # werden trotzdem sofort wirksam, sobald sie gelesen sind.
+            frame += 1
+            if frame % PANEL_EVERY == 0:
+                if panel.clicked("menu"):
+                    back_to_menu = True
+                    break
+                if panel.clicked("defaults"):
+                    panel.reset_to_defaults()      # legt Slider+Buttons neu an
+                    drone.reset_pid_state()
+                    print("Defaults wiederhergestellt")
+                if panel.clicked("reset_pid"):
+                    drone.reset_pid_state()
+                    print("PID-Zustand zurückgesetzt")
 
-            v = panel.read()
-            drone.set_flight_limits(
-                cruise=v["cruise_ms"], max_acc=v["max_acc"],
-                yaw_rate=math.radians(v["yaw_rate"]), yaw_acc=math.radians(v["yaw_acc"]),
-            )
-            drone.set_pid_gains(**pid_arrays(v["p_xy"], v["p_z"], v["i_xy"],
-                                             v["d_xy"], v["d_z"]))
+                new_v = panel.read()
+                if new_v != v:                     # nur bei echter Änderung anwenden
+                    v = new_v
+                    drone.set_flight_limits(
+                        cruise=v["cruise_ms"], max_acc=v["max_acc"],
+                        yaw_rate=math.radians(v["yaw_rate"]),
+                        yaw_acc=math.radians(v["yaw_acc"]),
+                    )
+                    drone.set_pid_gains(**pid_arrays(v["p_xy"], v["p_z"], v["i_xy"],
+                                                     v["d_xy"], v["d_z"]))
 
             # Shift = Kameramodus: Nachführung pausiert (Maus-Drag/Zoom gehören dem
             # Nutzer) und die Drohne schwebt, damit sie beim Umsehen nicht wegfliegt.

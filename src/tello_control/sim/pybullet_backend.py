@@ -130,6 +130,16 @@ class PyBulletBackend(MockTello):
         if not self._gui:
             return
         cid = self._env.CLIENT
+
+        # Die drei Vorschau-Viewports (RGB / Tiefe / Segmentierung) rendern die Szene
+        # JEDEN Frame zusätzlich, per CPU über den Tiny Renderer. Bei COV_ENABLE_GUI=0
+        # waren sie nur versteckt, nicht aus — sobald das Panel für die Slider das GUI
+        # einschaltet, kosten sie ein Vielfaches der eigentlichen Physik. Explizit aus.
+        for preview in (p.COV_ENABLE_RGB_BUFFER_PREVIEW,
+                        p.COV_ENABLE_DEPTH_BUFFER_PREVIEW,
+                        p.COV_ENABLE_SEGMENTATION_MARK_PREVIEW):
+            p.configureDebugVisualizer(preview, 0, physicsClientId=cid)
+
         # Das Seitenpanel beherbergt die Slider aus tuning_panel.py. Ohne Panel bleiben
         # sie unsichtbar (lesbar wären sie trotzdem).
         p.configureDebugVisualizer(p.COV_ENABLE_GUI, 1 if self._show_gui_panel else 0,
