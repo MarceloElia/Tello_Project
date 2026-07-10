@@ -22,7 +22,7 @@ simulation.
 
 **Gesture control** — a held hand pose maps to a discrete 30 cm move.
 
-![Gesture control](docs/images/gesture_highlight.gif)
+<img src="docs/images/gesture_highlight.gif" alt="Gesture control" width="720">
 
 ▶ [Full clip (46 s, with sound)](https://github.com/user-attachments/assets/d190e388-8feb-4e01-887d-ef08f4270340)
 
@@ -30,7 +30,7 @@ simulation.
 velocity setpoint via `send_rc_control` instead of discrete hops. No ACK round-trip per
 command, so the drone moves the moment the gesture is recognised.
 
-![RC velocity control](docs/images/rc_highlight.gif)
+<img src="docs/images/rc_highlight.gif" alt="RC velocity control" width="720">
 
 ▶ [Full clip (47 s, with sound)](https://github.com/user-attachments/assets/5afec26c-a6a6-484a-98b8-738a247a553b)
 
@@ -42,7 +42,7 @@ https://github.com/user-attachments/assets/0d656712-5195-4bd6-93da-4e94c118456d
 **PID step-response lab (simulation)** — the PyBullet backend overshooting a step input
 before settling, used to tune the flight controller's PID gains.
 
-![PID overshoot in simulation](docs/images/pid_overstear_highlight.gif)
+<img src="docs/images/pid_overstear_highlight.gif" alt="PID overshoot in simulation" width="720">
 
 ---
 
