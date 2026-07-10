@@ -122,12 +122,33 @@ ffmpeg -ss 00:00:12 -t 5 -i Drohne_Gesten_test.mov -i /tmp/pal.png \
   -y docs/images/gesture_highlight.gif
 ```
 
-**2 — full clip** (~3–8 MB for a 40–50 s source, plays inline *with audio*):
+**2 — full clip** (plays inline *with audio*). Settings chosen by measurement, not by
+feel: encoded at several qualities and scored with `libvmaf` against the source.
 
 ```bash
-ffmpeg -i Drohne_Gesten_test.mov -vf "scale=1280:-2" \
-  -c:v libx264 -crf 28 -preset slow -c:a aac -b:a 96k \
-  -movflags +faststart full_gesture.mp4
+ffmpeg -i Tello_drone_rc_gesture.mov -vf "scale=1920:-2:flags=lanczos" \
+  -c:v libx264 -crf 24 -preset slow -pix_fmt yuv420p \
+  -c:a aac -b:a 128k -movflags +faststart Tello_drone_rc_gesture.mp4
+```
+
+142 MB → 8.3 MB at **VMAF 95.3**, i.e. visually indistinguishable from the source. Note
+the source is already lossy H.264, so nothing here is *mathematically* lossless — a true
+lossless re-encode (`-crf 0`) would be **larger** than the original. Two findings from
+the sweep worth keeping:
+
+| | est. size (47 s) | VMAF |
+|---|---|---|
+| 1920p CRF 23 | 10.1 MB | 95.5 |
+| **1920p CRF 24** | **8.4 MB** | **95.1** |
+| 1600p CRF 23 | 6.9 MB | 93.6 |
+| 720p CRF 28 | 2.5 MB | 86.9 |
+
+Keeping full width and raising CRF beats downscaling at an equal byte budget (1920p/CRF 25
+scores 94.2 at 7.1 MB; 1600p/CRF 23 scores 93.6 at 6.9 MB). Don't trade away resolution
+to save bits. Reproduce a score with:
+
+```bash
+ffmpeg -i out.mp4 -i src.mov -lavfi "[0:v]scale=1920:1080[d];[1:v]scale=1920:1080[r];[d][r]libvmaf" -f null -
 ```
 
 Then drag `full_gesture.mp4` into any GitHub issue comment **without submitting the
