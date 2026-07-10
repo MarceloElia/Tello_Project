@@ -9,6 +9,58 @@
 
 **Stand:** 2026-07-10
 **Aktive Phase:** A3 Kern fertig (PyBullet-Sim) · A0 + A1 + A2 + A3-Kern stehen
+**Letztes Ergebnis (2026-07-10, Sim-Qualität):** Ruckeln behoben, RC in der Sim, Tastatur.
+- **Ursache 1 (blockierend, `demo.py --backend sim`):** `_sim_goto` führte den Sollwert
+  geschwindigkeits-, aber nicht *beschleunigungs*begrenzt: ab Schritt 1 volle 0,6 m/s,
+  am Ende harter Schnapp aufs Ziel. Zwei Geschwindigkeitssprünge → der PID musste den
+  Ruck ausregeln. Zusätzlich Vollstopp (`VEL_TOL`) nach jedem 30-cm-Schritt.
+- **Ursache 2 (kooperativ, Gesten/Sprache `--sim`):** `tick()` setzte `target` direkt auf
+  die Logik-Pose — ein `move_forward(30)` war ein 30-cm-**Stufeneingang**. Keine Rampe.
+- **Ursache 3 (Optik):** Kamera sprang hart auf die Drohnenposition, `sleep()` lief
+  240×/s statt pro Bild. Beides verstärkt den Eindruck.
+- **Fix:** neues Modul `sim/motion_profile.py` (`VectorRamp`, `YawRamp`) mit trapezför-
+  migem Profil (`v_stop = sqrt(2·a·s)`), genutzt von `_sim_goto` **und** `tick()`.
+  Kamera exponentiell geglättet, Rendering pro Bild (`RENDER_HZ`), Szenenaufbau ohne
+  Rendering. Zwei echte Bugs dabei gefunden: `shortest_angle_diff(π,0)` gab `-π` zurück
+  (180°-Wende drehte falsch herum) und das harte Nullen der Restgeschwindigkeit beim
+  Landen auf dem Ziel war selbst ein Geschwindigkeitssprung.
+- **RC in der Sim funktioniert jetzt:** `PyBulletBackend.tick()` rief nie `super().tick()`,
+  der RC-Sollwert wurde also nie integriert. Genau deshalb war `--rc --sim` gesperrt —
+  keine Design-Entscheidung, eine fehlende Zeile. Sperre in `gesture/app.py` entfernt.
+  `DroneController.tick(dt=None)` reicht `dt` jetzt durch (Determinismus in Tests).
+- **Neu: Tastatursteuerung** `sim/keyboard_control.py` (+ reine `sim/keyboard_map.py`),
+  Konsolen-Skript `tello-sim-keys`. Gehaltene Taste → RC-Sollwert, derselbe Pfad wie
+  der Gesten-`--rc`-Modus. WASD/RF/EZ, T Start, L Landen, Leer Hover, Q Ende.
+- **Ursache 4 (der eigentliche Optik-Bug):** PyBullets GUI belegt eigene Debug-Tasten —
+  `w`=Wireframe, `s`=Schatten, `a`=AABB, `d`=Deaktivierung, `l`=Constraint-Limits.
+  Die WASD-Flugsteuerung löste sie mit aus, deshalb "buggte" das Bild beim Fliegen.
+  Fix: `COV_ENABLE_KEYBOARD_SHORTCUTS` aus (+ `COV_ENABLE_MOUSE_PICKING` aus, sonst
+  zerrt ein Klick die Drohne durch die Luft).
+- **Kamera umkreisen ging nicht**, weil `_follow_camera` jeden Frame
+  `resetDebugVisualizerCamera` rief und damit den laufenden Maus-Drag überschrieb.
+  Jetzt nur noch bei Zielbewegung > `CAM_MIN_MOVE` (2 cm); im Schwebeflug fasst die
+  Sim die Kamera gar nicht an. Taste `c` schaltet die Nachführung zur Laufzeit ab.
+- **Szene neu:** dunkler Boden + helles 0,5-m-Raster + Höhenmast statt hellem Beton und
+  cremeweißem Drahtwürfel (die Kanten zogen mehr Blick als die Drohne, und die
+  hellgraue Crazyflie verschwand vor hellem Grund). Dunkler `rgbBackground`, dazu eine
+  mitlaufende Lotlinie Drohne→Boden als Höhen-/Tiefenhinweis.
+- Neue Tests: `test_motion_profile.py`, `test_keyboard_map.py` (beide PyBullet-frei).
+  Gesamt 125 Tests grün.
+- **Gemessen** (`scripts/sim_smoothness_benchmark.py`, 30-cm-Schritt, PID unverändert):
+
+  | Sollwert-Führung | Überschwingen | \|a\|max | \|Ruck\|max |
+  |---|---|---|---|
+  | Sprung (alt: Tastatur/Gesten/Sprache) | 5,85 % | 2,39 m/s² | 23 m/s³ |
+  | Rampe ohne Beschl.-Limit (alt: `demo.py`) | 5,12 % | 1,24 m/s² | 8 m/s³ |
+  | Trapezprofil (neu, beide Pfade) | 5,09 % | 0,95 m/s² | 5 m/s³ |
+
+  Ruck 4,6× kleiner im interaktiven Pfad. **Das Überschwingen bleibt bei ~5 %** — das
+  hängt an den PID-Gains, nicht an der Sollwert-Führung. Wer es wegbekommen will, muss
+  im `control_lab` an den Reglerparametern drehen. Ehrlich: für den blockierenden
+  `demo.py`-Pfad allein war der Gewinn klein (8→5 m/s³); der große Effekt liegt im
+  kooperativen Modus, wo vorher ein 30-cm-Stufeneingang anlag.
+- **Offen:** GUI-Live-Lauf. Szene, Kamera-Logik und Lotlinie laufen nur mit `gui=True`
+  und sind daher headless nicht getestet.
 **Letztes Ergebnis (2026-07-10):** Repo für Veröffentlichung vorbereitet.
 - `.gitignore`: `*.mov`/`*.mp4` raus (334 MB Rohvideos, eine Datei 142 MB > GitHubs
   100-MB-Limit). Blanket-`.aider*` durch explizite Einträge ersetzt, damit ein

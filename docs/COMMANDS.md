@@ -63,9 +63,17 @@ Requires a local Ollama server with the model pulled once:
 
 ## Simulation (conda env `tello-sim`)
 
+> **`deactivate` the venv first.** Activating the venv after the conda env puts
+> `venv/bin` ahead on `PATH`, so `python` resolves to the venv interpreter — which
+> deliberately has no PyBullet. The symptom is `ModuleNotFoundError: No module named
+> 'pybullet'` even though the conda env is fine. A prompt showing `(tello-sim) (venv)`
+> means you are in the wrong interpreter.
+
 ```bash
+conda activate tello-sim
 python -m tello_control.sim.launcher          # menu launcher (all sim modes)
 python -m tello_control.sim.demo              # cube flight in the 3D window
+python -m tello_control.sim.keyboard_control  # fly it with the keyboard
 python -m tello_control.sim.control_lab       # PID step response → results/control_lab_step.png
 ```
 
@@ -88,11 +96,45 @@ vs. fire-and-forget `send_rc_control`. At a realistic 200 ms ack the discrete pa
 is ~200 ms/command (≈5 commands/s); RC saves that full ~200 ms per command. Real
 numbers come from a `--real` run on the drone.
 
+## Keyboard control in the simulation
+
+Runs in the conda env `tello-sim`. **If the venv is active, run `deactivate` first** —
+otherwise its `python` shadows the conda one and PyBullet appears to be missing.
+
+```bash
+conda activate tello-sim
+python -m tello_control.sim.keyboard_control     # or: tello-sim-keys
+```
+
+The PyBullet window must have focus. Hold a key to fly, release to hover.
+
+| Key | Action | Key | Action |
+|-----|--------|-----|--------|
+| `t` | take off | `w` / `s` | forward / back |
+| `l` | land | `a` / `d` | left / right |
+| `space` | hover (stop) | `r` / `f` | up / down |
+| `q` | quit | `e` / `z` | rotate cw / ccw |
+
+Held keys become a continuous `send_rc_control` setpoint — the same path the gesture
+`--rc` mode uses. `tello-gesture --sim --rc` now works too.
+
 ## Tests
 
 ```bash
 pytest                                        # hardware-free suite (97 tests)
 ```
+
+## Simulation smoothness benchmark
+
+```bash
+conda activate tello-sim
+python scripts/sim_smoothness_benchmark.py
+```
+
+Flies the same 30 cm step through the same PID with the old and the new setpoint
+guidance, and reports overshoot, peak acceleration and jerk measured on the drone's
+actual position. Jerk (the derivative of acceleration) is what the eye reads as
+"jerky".
 
 ## Graphify benchmark
 

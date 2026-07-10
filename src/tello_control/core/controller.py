@@ -91,15 +91,20 @@ class DroneController:
     def disconnect(self):
         self.drone.end()
 
-    def tick(self):
-        """Treibt die Physik einen Schritt weiter (nur Sim im cooperative-Mode).
+    def tick(self, dt=None):
+        """Treibt einen Zeitschritt: RC-Sollwert integrieren, in der Sim auch Physik.
 
-        Pro Frame der interaktiven Haupt-Loop aufrufen. Für mock/real ein No-Op,
-        da diese Backends kein tick() haben.
+        Pro Frame der interaktiven Haupt-Loop aufrufen.
+          mock: integriert einen gehaltenen ``send_rc_control``-Sollwert in die Pose.
+          sim:  dasselbe, plus ein Stück PyBullet-Physik (nur im cooperative-Mode).
+          real: No-Op — die echte Drohne führt RC selbst aus, djitellopy hat kein tick().
+
+        dt: Sekunden seit dem letzten Aufruf. Ohne Angabe aus der monotonen Uhr;
+        Tests übergeben ein festes dt für Determinismus.
         """
         tick = getattr(self.drone, "tick", None)
         if tick is not None:
-            tick()
+            tick(dt)
 
     # ---- nur in der Simulation verfügbar ----
     def position(self):

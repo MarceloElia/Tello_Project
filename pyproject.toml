@@ -53,6 +53,7 @@ dev = [
 tello-gesture = "tello_control.gesture.app:main"
 tello-voice = "tello_control.voice.app:main"
 tello-sim = "tello_control.sim.launcher:main"
+tello-sim-keys = "tello_control.sim.keyboard_control:main"
 
 [project.urls]
 Repository = "https://github.com/MarceloElia/Tello_Project"

@@ -116,8 +116,6 @@ def main():
     args = parser.parse_args()
 
     backend = "real" if args.real else ("sim" if args.sim else "mock")
-    if args.rc and backend == "sim":
-        parser.error("--rc wird mit --sim noch nicht unterstützt (nur mock + real).")
     mode = {"real": "REAL", "sim": "SIM", "mock": "MOCK"}[backend]
     real_mode = backend == "real"
     fpv_mode  = args.fpv and real_mode
