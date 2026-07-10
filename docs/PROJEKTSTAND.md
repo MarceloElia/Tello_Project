@@ -25,8 +25,9 @@
 - Tooling wird mitveröffentlicht: 4 Skills unter `.claude/skills/` (Q_A ausgeschlossen —
   zeigt auf privaten Wissensspeicher), `generate_gate` sagte 7b statt 3b.
 - CI: GitHub Actions, 97 Tests auf py3.11 + 3.12.
-- **Offen:** Demo-Videos (3 Stück) schneiden — 5-s-GIF + Vollclip als GitHub-Attachment;
-  Rezepte in `COMMANDS.md § Demo assets`. Dann privat pushen, CI grün, dann public.
+- Demo-Videos: 3 echte Flüge (Geste, `--rc`, Sprache) auf 1920p/CRF24 komprimiert
+  (142→8,3 MB, VMAF 95,3), als GitHub-Attachments eingebunden; 10-s-Highlight-GIFs in
+  `docs/images/`. Repo ist public, CI grün.
 **Letztes Ergebnis (2026-07-09):** Zwei getrennte Latenz-Optimierungen für die
 Gestensteuerung (nur Mock getestet, echte Drohne noch offen):
 - **Kontinuierliche RC-Geschwindigkeitssteuerung** (`--rc`, opt-in): gehaltene Geste →
@@ -67,10 +68,8 @@ per `scripts/download_model.py` (nicht committed). Englisches `README.md` +
 `docs/PROJECT.pdf` (Tiefen-Doku) erstellt. Aufrufe: siehe `COMMANDS.md`.
 
 **Offen über alle Phasen:**
-- Echte-Drohne-Tests für A1 (Gesten) und A2 (Sprache) – braucht Hardware, inkl. der
-  neuen Latenz-Fixes (Debounce/Cooldown, Fastpath, VAD-ENTER-Modus) **und des neuen
-  RC-Modus** (`--real --rc`): erwartete Latenzverbesserung ggü. `--real` messen;
-  prüfen, dass q/e/Landung den RC-Sollwert nullen (sonst driftet die Drohne).
+- Latenz-Messung `--real` vs. `--real --rc` in Zahlen festhalten (Flüge erfolgt,
+  Messwerte noch nicht dokumentiert).
 - Latenz-Benchmark (Geste→Befehl) diskret vs. RC dokumentieren – Portfolio-Zahl.
 - GUI-Live-Run der Sim durch den User.
 - Optional: ROS-2-Layer (CV-Ziel), A4-Integration.
@@ -89,13 +88,13 @@ per `scripts/download_model.py` (nicht committed). Englisches `README.md` +
 - [x] DroneController-Abstraktion
 - [x] MockTello: Position, Protokoll, Karte, Sicherheitsprüfungen
 
-### A1 · Gestensteuerung (MediaPipe) ✅ FERTIG (bis auf echte Drohne)
+### A1 · Gestensteuerung (MediaPipe) ✅ FERTIG
 - [x] MediaPipe (Tasks-API 0.10+, `gesture/hand_landmarker.task` lokal)
 - [x] Winkelbasierter Klassifikator (orientierungsunabhängig, nicht nur Position)
 - [x] Gesten-Map (Tabelle unten)
 - [x] Debounce (N Frames stabil) + Befehlsauslösung
 - [x] Gegen MockTello getestet, live mit Webcam getestet (funktioniert gut)
-- [ ] Gegen echte Drohne testen (Hardware)
+- [x] Gegen echte Drohne testen (Hardware) — geflogen 2026-07-10
 
 **Gesten-Map (final, `gesture/command_map.py`):**
 | Geste                   | Befehl     |
@@ -111,7 +110,7 @@ per `scripts/download_model.py` (nicht committed). Englisches `README.md` +
 
 Bild gespiegelt (Selfie), Dead Zone ±30° um die Senkrechte für forward.
 
-### A2 · Sprachsteuerung (lokales LLM) ✅ FERTIG (bis auf echte Drohne)
+### A2 · Sprachsteuerung (lokales LLM) ✅ FERTIG
 - [x] faster-whisper 1.2.1 + sounddevice
 - [x] Ollama, Modell `qwen2.5:3b` gepullt + In-App-Autostart (`ensure_ollama()`)
 - [x] `voice/commands.py` – Schema + Validierung (8 Negativfälle abgewiesen)
@@ -122,7 +121,7 @@ Bild gespiegelt (Selfie), Dead Zone ±30° um die Senkrechte für forward.
 - [x] `voice/app.py` – ENTER- und Dauerhör-Modus, Bestätigung vor echtem Flug
 - [x] Live-Mikrofontest (funktioniert gut, Whisper `small` reicht)
 - [ ] Live-Test Dauerhören (energy_factor ggf. justieren)
-- [ ] Gegen echte Drohne testen (Hardware)
+- [x] Gegen echte Drohne testen (Hardware) — geflogen 2026-07-10
 
 ### A3 · Simulation (PyBullet / gym-pybullet-drones) ✅ KERN FERTIG
 Statt Gazebo: PyBullet (nativ auf M1, kein Docker, echte Quadrotor-Physik, fertige PID-Regler).

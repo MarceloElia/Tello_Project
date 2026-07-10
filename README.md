@@ -1,6 +1,11 @@
 # Tello Control — gesture & voice control for a DJI Tello (fully local)
 
-Control a DJI Tello drone with various methodes from direct inputs to gesture control to voice commands. All functions were firstly tested on a mock version then a local simulation and in the end on the hardware. It´s meant for grasping the workflow from implementing the libraries, sending direct commands to the Hardware ot the local model and verifying the movements. Outside of the controling functionality of this repo it´s also designed to work semelsy with Coding AI-Models and run them as efficiently and perfamative as possible.
+Control a DJI Tello drone with various methods, from direct inputs to gesture control to
+voice commands. All functions were first tested on a mock version, then a local simulation,
+and in the end on the hardware. It's meant for grasping the workflow: implementing the
+libraries, sending direct commands to the hardware or the local model, and verifying the
+movements. Outside of the controlling functionality, this repo is also designed to work
+seamlessly with coding AI models and to run them as efficiently and performantly as possible.
 
 [![Tests](https://github.com/MarceloElia/Tello_Project/actions/workflows/tests.yml/badge.svg)](https://github.com/MarceloElia/Tello_Project/actions/workflows/tests.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
@@ -37,7 +42,12 @@ https://github.com/user-attachments/assets/0d656712-5195-4bd6-93da-4e94c118456d
 
 ## Why this project
 
-In my humble opinion drones are just way more fun to watch and control than any land moving robot, especially in such a project scope. So even though most ground projects would be easier to control and have a lower risk of crashing into the wall that risk is the exact reason why it is more interesting. Since i don´t have a pile of these drones laying around i had to test them serveralfold to ensure safty via the mock and the simulation.
+In my humble opinion, drones are just way more fun to watch and control than any
+ground-based robot, especially at this project's scope. So even though most ground projects
+would be easier to control and carry a lower risk of crashing into a wall, that risk is the
+exact reason why this is more interesting. Since I don't have a pile of these drones lying
+around, I had to test everything repeatedly against the mock and the simulation to ensure
+safety.
 
 A `DroneController` hides the backend. The same gesture and voice code runs against a
 software mock, a PyBullet physics simulation, or the real Tello — switching is a single
@@ -74,6 +84,7 @@ The code above the controller never knows which backend is running.
 | **Gesture** (`tello_control.gesture`) | Webcam → hand landmarks → angle-based classifier → debounced commands (worker thread). Optional `--rc` mode turns a held gesture into a continuous velocity setpoint instead of discrete 30 cm hops | MediaPipe, OpenCV |
 | **Voice** (`tello_control.voice`) | Mic → energy VAD + wake word → speech-to-text → local LLM → validated JSON commands. A keyword fastpath skips the LLM for simple commands, through the same validator | faster-whisper, Ollama (`qwen2.5:3b`) |
 | **Sim** (`tello_control.sim`) | Real quadrotor physics in a 3D window + a PID step-response lab | PyBullet / gym-pybullet-drones |
+| **Controller** (`examples/ps4_controller.py`) | Gamepad sticks → continuous `send_rc_control` setpoints, zeroed on release and before landing. Talks to `djitellopy.Tello` directly, so unlike the modes above it flies the **real drone only** — no mock, no sim | pygame |
 
 ## Performance
 
@@ -201,7 +212,7 @@ which nudge an agent to run `graphify query` before grepping. Delete them if unw
 - **A1 Gesture control** ✅ — MediaPipe, angle-based classifier, debounce
 - **A2 Voice control** ✅ — Whisper → Ollama → validated JSON, wake word
 - **A3 Physics sim** ✅ — PyBullet backend + PID lab
-- **A4 Integration** ⏳ — unified app, demo video, portfolio polish
+- **A4 Integration** ⏳ — unified app, portfolio polish
 
 ## License
 

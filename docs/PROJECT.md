@@ -274,9 +274,9 @@ voice remain the two working control channels.
 # 7. Status & roadmap
 
 - **A0 Foundation** ✅ — controller abstraction, MockTello, first real flights.
-- **A1 Gesture control** ✅ — MediaPipe, angle-based classifier, debounce (live-tested
-  on webcam; real-drone test pending hardware).
-- **A2 Voice control** ✅ — Whisper → Ollama → validated JSON, wake word
-  (live mic-tested; real-drone test pending hardware).
+- **A1 Gesture control** ✅ — MediaPipe, angle-based classifier, debounce; flown on the
+  real drone in both discrete and `--rc` velocity mode.
+- **A2 Voice control** ✅ — Whisper → Ollama → validated JSON, wake word; flown on the
+  real drone.
 - **A3 Physics sim** ✅ — PyBullet backend + PID control lab.
-- **A4 Integration** ⏳ — unified app, demo video, portfolio polish.
+- **A4 Integration** ⏳ — unified app, portfolio polish.
